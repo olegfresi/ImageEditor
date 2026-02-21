@@ -1,19 +1,21 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.20)
 project(ImageEditor)
 
 set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(ImageEditor src/main.cpp
-        include/Core/Application.hpp
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
+
+add_executable(ImageEditor
+        src/main.cpp
         src/Core/Application.cpp
-        include/Core/Image.hpp
         src/Core/Image.cpp
-        include/Filters/Filter.hpp
         src/Filter/Filter.cpp
-        "include/Filters/Edge Detection.hpp"
-        include/Filters/Sobolev.hpp
-        include/Core/Pixel.hpp
         thirdparty/stb_image.cpp
-        include/Core/Window.hpp
         src/Core/Window.cpp
+        src/Core/Pixel.cpp
+        src/Core/Event.cpp
 )
+
+target_link_libraries(ImageEditor PRIVATE PkgConfig::GTKMM)

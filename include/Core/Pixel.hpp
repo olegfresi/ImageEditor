@@ -31,29 +31,40 @@
 #pragma once
 #include <cstdint>
 
-class Pixel
+/* Class for representing raw pixels to work with images*/
+
+namespace Editor
 {
-public:
-    Pixel(uint32_t r, uint32_t g, uint32_t b, uint32_t a);
-    Pixel(uint32_t r, uint32_t g, uint32_t b);
+    class Pixel
+    {
+    public:
+        Pixel();
+        Pixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+        Pixel(uint8_t r, uint8_t g, uint8_t b);
 
-    Pixel(const Pixel&);
+        Pixel(const Pixel&);
 
-    bool operator==(const Pixel &) const;
-    bool operator!=(const Pixel &) const;
+        bool operator==(const Pixel &) const;
+        bool operator!=(const Pixel &) const;
 
-    uint32_t GetR();
-    uint32_t GetG();
-    uint32_t GetB();
-    uint32_t GetA();
+        constexpr uint8_t GetR() const { return (m_rgba >> 24) & 0xFF; }
+        constexpr uint8_t GetG() const { return (m_rgba >> 16) & 0xFF; }
+        constexpr uint8_t GetB() const { return (m_rgba >> 16) & 0xFF; }
+        constexpr uint8_t GetA() const { return m_rgba & 0xFF; }
 
-    void SetPixel(int r, int g, int b, int a);
-    void GetPixelAt(uint32_t x, uint32_t y);
+        void SetPixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+        static constexpr uint32_t Pack(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
-private:
+    private:
 
-    uint32_t m_r;
-    uint32_t m_g;
-    uint32_t m_b;
-    uint32_t m_a;
-};
+        uint32_t m_rgba;
+    };
+}
+
+/* Color layout of m_rgba variable: 8 bits for each component /*
+/*
+ *  -------- -------- -------- -------- *
+ * |   r    |   g    |    b    |    a   |
+ *  ----------------------------------- *
+ *    8bit     8bit     8bit      8bit
+ */

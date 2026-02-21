@@ -29,3 +29,47 @@
  * SOFTWARE.
  */
 #pragma once
+#include <string>
+#include <giomm/simpleactiongroup.h>
+#include <gtkmm/box.h>
+#include <gtkmm/window.h>
+#include <gtkmm/scrolledwindow.h>
+#include <gtkmm/picture.h>
+#include <gtkmm/label.h>
+#include <gtkmm/frame.h>
+#include "Image.hpp"
+#include "../Filters/Filter.hpp"
+
+namespace Editor
+{
+    class Window : public Gtk::Window
+    {
+    public:
+        Window(int width, int height, std::string title);
+
+        void ApplyFilter(Image& image, FilterType filterType);
+
+    protected:
+        void OnImport();
+        void OnSave();
+        void SetupMenu();
+        void UpdateImageSize();
+        void UpdateFromImage();
+        Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
+
+    private:
+        int m_width;
+        int m_height;
+        std::string m_title;
+        Image m_image;
+
+        Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
+        Gtk::ScrolledWindow m_scrolled;
+        Gtk::Picture m_picture;
+        Gtk::Frame m_image_frame;
+        Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
+        Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
+        Glib::RefPtr<Gdk::Pixbuf> m_originalPixbuf;
+        Gtk::Label m_infoLabel{"Nessuna immagine caricata"};
+    };
+}

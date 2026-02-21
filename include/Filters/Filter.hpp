@@ -29,3 +29,13 @@
  * SOFTWARE.
  */
 #pragma once
+
+
+enum class FilterType
+{
+    GrayScale,
+    Blur,
+    Sharpen,
+    Emboss,
+    EdgeDetect
+};

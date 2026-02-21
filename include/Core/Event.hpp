@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Image.hpp
+ * File: Event.hpp
  * Author: olegfresi
- * Created: 20/02/26 17:02
+ * Created: 21/02/26 15:00
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,47 +29,3 @@
  * SOFTWARE.
  */
 #pragma once
-#include <filesystem>
-#include <vector>
-#include "Pixel.hpp"
-#include "../Filters/Filter.hpp"
-
-
-namespace Editor
-{
-    struct ImageData
-    {
-        int width;
-        int height;
-        int channels;
-        std::vector<Pixel> pixels;
-    };
-
-    class Image
-    {
-    public:
-        Image(std::filesystem::path filePath, int width, int height, int channels);
-        Image(const Image& other);
-        Image(Image&& other) noexcept;
-
-        void ToGrayScale();
-        void ToRGB();
-
-        bool LoadImage(std::filesystem::path filePath);
-        void ApplyFilter(FilterType type);
-
-        void Undo();
-        void Redo();
-
-        void SetPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-
-        int GetWidth() const { return m_data.width; }
-        int GetHeight() const  { return m_data.height; }
-        int GetChannels() const {return m_data.channels; }
-        std::vector<Pixel> GetPixelData() const { return m_data.pixels; }
-
-    private:
-        ImageData m_data;
-        std::filesystem::path m_filePath;
-    };
-}

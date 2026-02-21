@@ -1,12 +1,12 @@
 #include "../include/Core/Application.hpp"
 
-int main()
+
+int main(int argc, char *argv[])
 {
 
-    AppConfiguration config{"Image Editor", 600, 800};
+    Editor::AppConfiguration config{"Image Editor", 600, 800};
+    Editor::Application app{config};
 
-    Application app{config};
-    app.Run();
 
-    return 0;
+    return app.Run(argc, argv);
 }

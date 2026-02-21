@@ -30,25 +30,29 @@
  */
 #pragma once
 #include <string>
+#include "Window.hpp"
 
-struct AppConfiguration
+namespace Editor
 {
-    std::string name;
-    uint32_t winWidth;
-    uint32_t winHeight;
-};
+    struct AppConfiguration
+    {
+        std::string name;
+        uint32_t winWidth;
+        uint32_t winHeight;
+    };
 
-class Application
-{
-public:
-    explicit Application(AppConfiguration& config);
+    class Application
+    {
+    public:
+        explicit Application(AppConfiguration config);
 
-    Application(const Application&) = delete;
-    Application& operator=(const Application&) = delete;
+        Application(const Application&) = delete;
+        Application& operator=(const Application&) = delete;
 
-    void Run();
-    void ShutDown();
+        int Run(int argc, char** argv);
 
-private:
-    AppConfiguration m_config;
-};
+    private:
+        AppConfiguration m_config;
+        Glib::RefPtr<Gtk::Application> m_app;
+    };
+}
