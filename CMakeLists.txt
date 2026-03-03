@@ -7,15 +7,22 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 
+
 add_executable(ImageEditor
         src/main.cpp
         src/Core/Application.cpp
         src/Core/Image.cpp
         src/Filter/Filter.cpp
+        src/Filter/Blur.cpp
         thirdparty/stb_image.cpp
         src/Core/Window.cpp
         src/Core/Pixel.cpp
-        src/Core/Event.cpp
+        include/Math/Convolution.hpp
+        include/Tools/Profiler.hpp
+        src/Math/Convolution.cpp
+        src/Core/Utils.cpp
+        src/Math/Gaussian.cpp
 )
 
 target_link_libraries(ImageEditor PRIVATE PkgConfig::GTKMM)
+

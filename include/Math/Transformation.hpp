@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Pixel.hpp
+ * File: Transformation.hpp
  * Author: olegfresi
- * Created: 20/02/26 17:21
+ * Created: 01/03/26 11:34
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,31 +29,8 @@
  * SOFTWARE.
  */
 #pragma once
-#include <cstdint>
 
-/* Class for representing raw pixels to work with images*/
-
-namespace Editor
+namespace Editor::Math
 {
-    class Pixel
-    {
-    public:
 
-        bool operator==(const Pixel &) const;
-        bool operator!=(const Pixel &) const;
-
-        [[nodiscard]] constexpr uint8_t GetR() const { return m_r; }
-        [[nodiscard]] constexpr uint8_t GetG() const { return m_g; }
-        [[nodiscard]] constexpr uint8_t GetB() const { return m_b; }
-        [[nodiscard]] constexpr uint8_t GetA() const { return m_a; }
-
-        void SetPixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
-
-    private:
-
-        uint8_t m_r{};
-        uint8_t m_g{};
-        uint8_t m_b{};
-        uint8_t m_a{};
-    };
 }

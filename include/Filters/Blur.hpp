@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Event.hpp
+ * File: GaussianFilter.hpp
  * Author: olegfresi
- * Created: 21/02/26 15:00
+ * Created: 24/02/26 18:26
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,3 +29,11 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../Core/Image.hpp"
+#include "../../include/Math/Convolution.hpp"
+
+namespace Editor::Filter
+{
+    [[nodiscard]] Image GaussianBlur(const Image& img, float sigma);
+    constexpr std::vector<float> BoxFilter();
+}

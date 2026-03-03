@@ -30,12 +30,26 @@
  */
 #pragma once
 
-
-enum class FilterType
+namespace Editor
 {
-    GrayScale,
-    Blur,
-    Sharpen,
-    Emboss,
-    EdgeDetect
-};
+    class Image;
+}
+
+namespace Editor::Filter
+{
+    enum class FilterType
+    {
+        GrayScale,
+        Blur,
+        Sharpen,
+        Emboss,
+        EdgeDetect,
+        Invert
+    };
+
+    template<typename Filter, typename... Args>
+    void ApplyFilter(Image& img, Filter filter, Args... args)
+    {
+
+    }
+}

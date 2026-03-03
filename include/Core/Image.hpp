@@ -34,7 +34,6 @@
 #include "Pixel.hpp"
 #include "../Filters/Filter.hpp"
 
-
 namespace Editor
 {
     struct ImageData
@@ -49,27 +48,32 @@ namespace Editor
     {
     public:
         Image(std::filesystem::path filePath, int width, int height, int channels);
+        Image(int width, int height, int channels);
         Image(const Image& other);
         Image(Image&& other) noexcept;
 
+        Image& operator=(const Image& other);
+        Image& operator=(Image&& other) noexcept;
+
+        bool LoadImage(const std::filesystem::path& filePath);
+
+        void Rotate();
+        void FlipHorizontal();
+        void FlipVertical();
+
+        void ApplyFilter(Filter::FilterType type);
         void ToGrayScale();
-        void ToRGB();
-
-        bool LoadImage(std::filesystem::path filePath);
-        void ApplyFilter(FilterType type);
-
-        void Undo();
-        void Redo();
-
         void SetPixel(int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a);
+        [[nodiscard]] Pixel GetPixel(int x, int y) const { return m_data.pixels[y * m_data.width + x]; }
 
-        int GetWidth() const { return m_data.width; }
-        int GetHeight() const  { return m_data.height; }
-        int GetChannels() const {return m_data.channels; }
-        std::vector<Pixel> GetPixelData() const { return m_data.pixels; }
+
+        [[nodiscard]] int GetWidth()                           const { return m_data.width; }
+        [[nodiscard]] int GetHeight()                          const { return m_data.height; }
+        [[nodiscard]] int GetChannels()                        const { return m_data.channels; }
+        [[nodiscard]] const std::vector<Pixel>& GetPixelData() const { return m_data.pixels; }
 
     private:
         ImageData m_data;
-        std::filesystem::path m_filePath;
+        std::filesystem::path m_path;
     };
 }

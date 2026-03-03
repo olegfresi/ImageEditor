@@ -40,22 +40,33 @@
 #include "Image.hpp"
 #include "../Filters/Filter.hpp"
 
+
+/**
+ * Class for representing the main window of the application with all user interface elements
+ * It plays the view role in the MVC pattern
+ */
+
 namespace Editor
 {
     class Window : public Gtk::Window
     {
     public:
+        /*
+         * Constructor
+         * @param width: width of the window
+         * @param height: height of the window
+         * @param title: title of the window
+         */
         Window(int width, int height, std::string title);
 
-        void ApplyFilter(Image& image, FilterType filterType);
+        void ApplyFilter(Filter::FilterType filterType);
 
     protected:
         void OnImport();
         void OnSave();
-        void SetupMenu();
-        void UpdateImageSize();
-        void UpdateFromImage();
-        Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
+        void OnRotate();
+        void OnFlip();
+        void OnAbout();
 
     private:
         int m_width;
@@ -63,13 +74,34 @@ namespace Editor
         std::string m_title;
         Image m_image;
 
+        std::vector<uint8_t> m_displayBuffer;
+        std::string m_currentFilePath;
+
         Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
-        Gtk::ScrolledWindow m_scrolled;
-        Gtk::Picture m_picture;
-        Gtk::Frame m_image_frame;
-        Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
         Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
+        Gtk::Label m_infoLabel{"No image loaded"};
+        Gtk::Picture m_picture;
+        Gtk::Frame m_imageFrame;
+        Gtk::ScrolledWindow m_scrolled;
+        Glib::RefPtr<Gdk::Pixbuf> m_pixbuf;
         Glib::RefPtr<Gdk::Pixbuf> m_originalPixbuf;
-        Gtk::Label m_infoLabel{"Nessuna immagine caricata"};
+        Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
+
+        void SetupMenu();
+        void UpdateFromImage();
+        void LoadImageFromPath(const std::filesystem::path& path);
+        Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
+
+        template <typename Callable, typename... Args>
+        void AddAction(const std::string& actionName, Callable&& callable, Args&&... args)
+        {
+            m_actionGroup->add_action(actionName,
+                [this,
+                 func = std::forward<Callable>(callable),
+                 ...capturedArgs = std::forward<Args>(args)]() mutable
+                {
+                    std::invoke(func, this, capturedArgs...);
+                });
+        }
     };
 }

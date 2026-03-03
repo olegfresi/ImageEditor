@@ -1,79 +1,75 @@
-#include "../../include/Core/Window.hpp"
 #include <iostream>
 #include <giomm/menu.h>
-#include <gtkmm/box.h>
 #include <gtkmm/popovermenubar.h>
 #include <gtkmm/filedialog.h>
 #include <gtkmm/alertdialog.h>
+#include <gtkmm/cssprovider.h>
+#include <gtkmm/droptarget.h>
+#include "../../include/Core/Window.hpp"
+#include "../../include/Filters/Blur.hpp"
+#include "../../include/Tools/Profiler.hpp"
 
 namespace Editor
 {
-    Window::Window(int width, int height, std::string title) :
-        m_width{width}, m_height{height}, m_title{std::move(title)}, m_image{"", width, height, 4}
+    Window::Window(int width, int height, std::string title) : m_width{ width }, m_height{ height },
+                                                               m_title{ std::move(title) },
+                                                               m_image{ "", width, height, 4 }
     {
         set_default_size(m_width, m_height);
         set_title(m_title);
 
-        set_resizable(false);
+        set_resizable(true);
         set_deletable(true);
 
+        // Create group of actions for user interface commands
         m_actionGroup = Gio::SimpleActionGroup::create();
 
-        m_actionGroup->add_action("import", sigc::mem_fun(*this, &Window::OnImport));
-        m_actionGroup->add_action("save",   sigc::mem_fun(*this, &Window::OnSave));
-        m_actionGroup->add_action("rotate", [] {
-            // TODO
-        });
+        AddAction("import", &Window::OnImport);
+        AddAction( "save", &Window::OnSave);
+        AddAction("rotate", &Window::OnRotate);
+        AddAction("flip", &Window::OnFlip);
+        AddAction("about", &Window::OnAbout);
+        AddAction("grayscale", &Window::ApplyFilter, Filter::FilterType::GrayScale);
 
-        m_actionGroup->add_action("flip", [] {
-            // TODO
-        });
-
-        m_actionGroup->add_action("grayscale", [this] {
-            ApplyFilter(m_image, FilterType::GrayScale);
+        m_actionGroup->add_action("blur", [this] {
+            ApplyFilter(Filter::FilterType::Blur);
             UpdateFromImage();
         });
 
-        m_actionGroup->add_action("blur",[this] {
-            ApplyFilter(m_image, FilterType::Blur);
+        m_actionGroup->add_action("sharpen", [this] {
+            ApplyFilter(Filter::FilterType::Sharpen);
             UpdateFromImage();
         });
 
-        m_actionGroup->add_action("sharpen",[this] {
-            ApplyFilter(m_image, FilterType::Sharpen);
+        m_actionGroup->add_action("emboss", [this] {
+            ApplyFilter(Filter::FilterType::Emboss);
             UpdateFromImage();
         });
 
-        m_actionGroup->add_action("emboss",[this] {
-            ApplyFilter(m_image, FilterType::Emboss);
+        m_actionGroup->add_action("edge_detect", [this] {
+            ApplyFilter(Filter::FilterType::EdgeDetect);
             UpdateFromImage();
         });
 
-        m_actionGroup->add_action("edge_detect",[this] {
-            ApplyFilter(m_image, FilterType::EdgeDetect);
-            UpdateFromImage();
-        });
-
-        m_actionGroup->add_action("about", [this] {
-            auto about_dialog = Gtk::AlertDialog::create("Image Editor v1.0");
-            about_dialog->set_detail("Created with gtkmm4 and C++\n2026 Edition");
-            about_dialog->show(*this);
-        });
-
+        // All previous actions are grouped in the win action group
         insert_action_group("win", m_actionGroup);
 
+        // Create main menu bar
         auto menu = Gio::Menu::create();
 
+        // Create submenu for file actions
         auto submenuFile = Gio::Menu::create();
         submenuFile->append("Import", "win.import");
         submenuFile->append("Save", "win.save");
         menu->append_submenu("File", submenuFile);
 
+        // Create submenu for edit actions
         auto submenuEdit = Gio::Menu::create();
         submenuEdit->append("Rotate", "win.rotate");
         submenuEdit->append("Flip", "win.flip");
         menu->append_submenu("Edit", submenuEdit);
 
+        // Create submenu for filter actions
         auto submenuFilter = Gio::Menu::create();
         submenuFilter->append("GrayScale", "win.grayscale");
         submenuFilter->append("Blur", "win.blur");
@@ -82,12 +78,15 @@ namespace Editor
         submenuFilter->append("Edge Detect", "win.edge_detect");
         menu->append_submenu("Filter", submenuFilter);
 
+        // Create submenu for about actions
         auto submenuAbout = Gio::Menu::create();
         submenuAbout->append("Info App", "win.about");
         menu->append_submenu("About", submenuAbout);
 
-        auto menubar = Gtk::make_managed<Gtk::PopoverMenuBar>(menu);
+        // Create popover menu bar with all previous submenus
+        auto menubar = Gtk::make_managed <Gtk::PopoverMenuBar>(menu);
 
+        // Set picture properties
         m_picture.set_hexpand(true);
         m_picture.set_vexpand(true);
         m_picture.set_can_shrink(true);
@@ -105,92 +104,182 @@ namespace Editor
         m_imageContainer.append(m_picture);
         m_imageContainer.append(m_infoLabel);
 
-        m_image_frame.set_child(m_imageContainer);
-        m_image_frame.set_margin_top(20);
-        m_image_frame.set_margin_bottom(20);
-        m_image_frame.set_margin_start(20);
-        m_image_frame.set_margin_end(20);
+        m_imageFrame.set_child(m_imageContainer);
+        m_imageFrame.set_margin_top(20);
+        m_imageFrame.set_margin_bottom(20);
+        m_imageFrame.set_margin_start(20);
+        m_imageFrame.set_margin_end(20);
 
-        m_scrolled.set_child(m_image_frame);
+        m_scrolled.set_child(m_imageFrame);
         m_scrolled.set_expand(true);
         m_scrolled.set_policy(Gtk::PolicyType::AUTOMATIC, Gtk::PolicyType::AUTOMATIC);
-        m_scrolled.signal_map().connect(sigc::mem_fun(*this, &Window::UpdateImageSize));
 
         m_vbox.set_orientation(Gtk::Orientation::VERTICAL);
         m_vbox.append(*menubar);
         m_vbox.append(m_scrolled);
 
+        // Set the image frame as receiver of a drag action, copying the dropped resource
+        auto drop_target = Gtk::DropTarget::create(Gio::File::get_type(), Gdk::DragAction::COPY);
+
+        drop_target->signal_drop().connect([this](const Glib::ValueBase& value, double, double) -> bool {
+            // Get the dropped file as GValue object
+            GValue const *g_value = value.gobj();
+
+            if (G_VALUE_HOLDS(g_value, G_TYPE_FILE))
+            {
+                // If GValue holds a GFile object then get a pointer to it and wrap it in a Glib::RefPtr
+                if (gpointer g_file_ptr = g_value_get_object(g_value))
+                    if (auto file = Glib::wrap(static_cast <GFile*>(g_file_ptr), true))
+                    {
+                        LoadImageFromPath(file->get_path());
+                        return true;
+                    }
+            }
+            return false;
+        }, false);
+
+        m_imageFrame.add_controller(drop_target);
         set_child(m_vbox);
     }
 
     void Window::OnImport()
     {
         auto dialog = Gtk::FileDialog::create();
-
-        dialog->open(*this, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result)
-        {
+        dialog->open(*this, [this, dialog](const Glib::RefPtr <Gio::AsyncResult> &result) {
             try
             {
-                auto file = dialog->open_finish(result);
-                m_originalPixbuf = Gdk::Pixbuf::create_from_file(file->get_path());
-                m_picture.set_pixbuf(m_originalPixbuf);
-
-                m_infoLabel.set_markup(
-                    "<b>File:</b> " + file->get_basename() +
-                    " <span color='gray'>(" +
-                    std::to_string(m_originalPixbuf->get_width()) + "x" +
-                    std::to_string(m_originalPixbuf->get_height()) +
-                    ")</span>"
-                );
-
-                UpdateImageSize();
-                m_image.LoadImage(file->get_path());
-            }
-            catch (const Glib::Error& ex)
+                if (auto file = dialog->open_finish(result))
+                    LoadImageFromPath(file->get_path());
+            } catch (const Glib::Error &ex)
             {
-                std::cerr << "Error: " << ex.what() << std::endl;
+                std::cerr << "Error loading image: " << ex.what() << std::endl;
             }
         });
     }
 
+    void Window::LoadImageFromPath(const std::filesystem::path& path)
+    {
+        try
+        {
+            m_image.LoadImage(path);
+            m_originalPixbuf = Gdk::Pixbuf::create_from_data(
+                reinterpret_cast<const guint8*>(m_image.GetPixelData().data()),
+                Gdk::Colorspace::RGB,
+                true,
+                8,
+                m_image.GetWidth(),
+                m_image.GetHeight(),
+                m_image.GetWidth() * m_image.GetChannels()
+            );
+
+            m_picture.set_pixbuf(m_originalPixbuf);
+            m_currentFilePath = path;
+
+            m_infoLabel.set_markup(
+                "<b>File:</b> " + path.filename().string() +
+                " <span color='gray'>(" +
+                std::to_string(m_originalPixbuf->get_width()) + "x" +
+                std::to_string(m_originalPixbuf->get_height()) +
+                ")</span>"
+            );
+
+            m_pixbuf.reset();
+        } catch (const Glib::Error &ex)
+        {
+            std::cerr << "Error loading image: " << ex.what() << std::endl;
+            auto error_dialog = Gtk::AlertDialog::create("Error loading");
+            error_dialog->set_detail(ex.what());
+            error_dialog->show(*this);
+        }
+    }
+
     void Window::OnSave()
     {
+        // If there is no image to save, show an error dialog
+        if (!m_pixbuf && !m_originalPixbuf)
+        {
+            auto dialog = Gtk::AlertDialog::create("No image to save");
+            dialog->set_detail("Load an image first.");
+            dialog->show(*this);
+            return;
+        }
 
-    }
-
-    void Window::ApplyFilter(Image& img, FilterType filterType)
-    {
-        img.ApplyFilter(filterType);
-    }
-
-    void Window::UpdateImageSize()
-    {
-        if (!m_originalPixbuf)
+        Glib::RefPtr <Gdk::Pixbuf> pixbufToSave = m_pixbuf ? m_pixbuf : m_originalPixbuf;
+        if (!pixbufToSave)
             return;
 
-        int target_w = m_scrolled.get_allocated_width();
-        int target_h = m_scrolled.get_allocated_height();
+        std::filesystem::path original_path = m_currentFilePath;
+        std::string default_name = original_path.filename().string();
 
-        if (target_w <= 0 || target_h <= 0)
-            return;
+        auto dialog = Gtk::FileDialog::create();
+        dialog->set_title("Save Image");
 
-        double ratio_w = static_cast<double>(target_w) / m_originalPixbuf->get_width();
-        double ratio_h = static_cast<double>(target_h) / m_originalPixbuf->get_height();
-        double ratio = std::min(ratio_w, ratio_h);
+        // If there is a current file path, set it as the default name
+        if (!m_currentFilePath.empty())
+            dialog->set_initial_name(default_name);
 
-        if (ratio > 1.0)
-            ratio = 1.0;
+        dialog->save(*this, [this, pixbufToSave, dialog](const Glib::RefPtr <Gio::AsyncResult> &result) {
+            try
+            {
+                auto file = dialog->save_finish(result);
+                std::string filePath = file->get_path();
 
-        int new_w = static_cast<int>(m_originalPixbuf->get_width() * ratio);
-        int new_h = static_cast<int>(m_originalPixbuf->get_height() * ratio);
+                std::filesystem::path save_path(filePath);
+                std::string ext = save_path.extension().string();
 
-        auto scaled = m_originalPixbuf->scale_simple(new_w, new_h, Gdk::InterpType::BILINEAR);
+                if (ext.empty())
+                    filePath += ".png";
+
+                std::string format = save_path.extension().string();
+                if (!format.empty() && format[0] == '.')
+                    format = format.substr(1);
+                if (format == "jpg")
+                    format = "jpeg";
+                else if (format == "tif")
+                    format = "tiff";
+
+                pixbufToSave->save(filePath, format);
+
+                auto success_dialog = Gtk::AlertDialog::create("Image saved");
+                success_dialog->set_detail("The image has been saved successfully.");
+                success_dialog->show(*this);
+            } catch (const Glib::Error &ex)
+            {
+                auto error_dialog = Gtk::AlertDialog::create("Error saving image");
+                error_dialog->set_detail(ex.what());
+                error_dialog->show(*this);
+            }
+        });
+    }
+
+    void Window::OnRotate()
+    {
+        m_image.Rotate();
+        UpdateFromImage();
+    }
+
+    void Window::OnFlip()
+    {
+        m_image.FlipHorizontal();
+        UpdateFromImage();
+    }
+
+    void Window::OnAbout()
+    {
+        auto about_dialog = Gtk::AlertDialog::create("Image Editor v1.0");
+        about_dialog->set_detail("Created with gtkmm4 and C++\n2026 Edition");
+        about_dialog->show(*this);
+    }
+
+    void Window::ApplyFilter(Filter::FilterType filterType)
+    {
+        m_image.ApplyFilter(filterType);
+        UpdateFromImage();
+        m_picture.queue_draw();
     }
 
     void Window::SetupMenu()
     {
-        m_actionGroup->add_action("import", sigc::mem_fun(*this, &Window::OnImport));
-
         insert_action_group("win", m_actionGroup);
 
         auto menu_model = Gio::Menu::create();
@@ -198,40 +287,50 @@ namespace Editor
         submenu_file->append("Import", "win.import");
         menu_model->append_submenu("File", submenu_file);
 
-        auto menubar = Gtk::make_managed<Gtk::PopoverMenuBar>(menu_model);
+        auto menubar = Gtk::make_managed <Gtk::PopoverMenuBar>(menu_model);
         m_vbox.append(*menubar);
     }
 
     void Window::UpdateFromImage()
     {
-        auto pixbuf = PixbufFromImage(m_image);
-        m_picture.set_pixbuf(pixbuf);
-    }
+        const int width = m_image.GetWidth();
+        const int height = m_image.GetHeight();
+        const int channels = m_image.GetChannels();
 
-    Glib::RefPtr<Gdk::Pixbuf> Window::PixbufFromImage(const Image& img)
-    {
-        std::vector<uint8_t> buffer;
-        buffer.reserve(img.GetWidth() * img.GetHeight() * img.GetChannels());
-
-        for (const auto& px : img.GetPixelData())
-        {
-            buffer.push_back(px.GetR());
-            buffer.push_back(px.GetG());
-            buffer.push_back(px.GetB());
-            if (img.GetChannels() == 4)
-                buffer.push_back(px.GetA());
-        }
-
-        auto pixbuf = Gdk::Pixbuf::create_from_data(
-            buffer.data(),
+        m_pixbuf = Gdk::Pixbuf::create_from_data(
+            reinterpret_cast<const guint8*>(m_image.GetPixelData().data()),
             Gdk::Colorspace::RGB,
-            img.GetChannels() == 4,
+            true,
             8,
-            img.GetWidth(),
-            img.GetHeight(),
-            img.GetWidth() * img.GetChannels()
+            width,
+            height,
+            width * channels
         );
 
-        return pixbuf;
+        m_picture.set_pixbuf(m_pixbuf);
+        m_picture.queue_draw();
+    }
+
+    Glib::RefPtr <Gdk::Pixbuf> Window::PixbufFromImage(const Image& img)
+    {
+        const int width = img.GetWidth();
+        const int height = img.GetHeight();
+        const int channels = img.GetChannels();
+
+        if (!m_pixbuf)
+        {
+            m_pixbuf = Gdk::Pixbuf::create_from_data(
+                reinterpret_cast<const guint8*>(img.GetPixelData().data()),
+                Gdk::Colorspace::RGB,
+                true,
+                8,
+                width,
+                height,
+                width * channels
+            );
+        }
+        m_picture.queue_draw();
+
+        return m_pixbuf;
     }
 }
