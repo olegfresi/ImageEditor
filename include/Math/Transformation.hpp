@@ -32,5 +32,8 @@
 
 namespace Editor::Math
 {
+    struct Transform
+    {
 
+    };
 }

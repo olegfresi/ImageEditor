@@ -34,6 +34,26 @@
 
 namespace Editor::Math
 {
-    constexpr std::vector<float> GenerateGaussian1D(float sigma);
-    constexpr Matrix<float> GenerateGaussian2D(float sigma);
+    /**
+    * Generate a 1D Gaussian kernel.
+    *
+    * Creates a normalized 1D Gaussian filter with the specified standard deviation.
+    * The kernel size is automatically determined based on sigma (typically 6*sigma).
+    *
+    * @param sigma Standard deviation of the Gaussian distribution
+    * @return vector of normalized Gaussian weights
+    */
+    std::vector<float> GenerateGaussian1D(float sigma);
+
+    /**
+    * Generate a 2D Gaussian kernel.
+    *
+    * Creates a normalized 2D Gaussian filter with the specified standard deviation.
+    * Useful for blur and smoothing operations on images.
+    * The kernel is square and size is determined based on sigma.
+    *
+    * @param sigma Standard deviation of the Gaussian distribution
+    * @return 2D matrix of normalized Gaussian weights
+    */
+    Matrix<float> GenerateGaussian2D(float sigma);
 }

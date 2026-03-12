@@ -30,7 +30,10 @@
  */
 #pragma once
 #include <string>
+#include "Document.hpp"
 #include "Window.hpp"
+#include "File.hpp"
+
 
 namespace Editor
 {
@@ -49,10 +52,22 @@ namespace Editor
         Application(const Application&) = delete;
         Application& operator=(const Application&) = delete;
 
+        void Init();
         int Run(int argc, char** argv);
+        void ShutDown();
+
+        std::unique_ptr<Document> NewDocument();
+        std::unique_ptr<Document> NewDocument(std::filesystem::path path);
+        std::unique_ptr<Document> NewDocumentFromFile(const File& file);
+
+        void OpenDocument(std::unique_ptr<Document> document);
+        void CloseDocument(std::unique_ptr<Document> document);
 
     private:
         AppConfiguration m_config;
         Glib::RefPtr<Gtk::Application> m_app;
+
+        std::list<File> m_recentFiles;
+        std::vector<std::unique_ptr<Document>> m_Documents;
     };
 }

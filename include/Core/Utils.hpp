@@ -34,15 +34,52 @@
 
 namespace Editor::Utils
 {
+    /**
+    * Floating-point RGB image representation.
+    *
+    * Separates an image into three separate matrices for red, green, and blue channels.
+    * Each channel stores normalized float values [0.0, 1.0] for precise mathematical operations.
+    * Useful for image processing algorithms that require higher precision than 8-bit integers.
+    */
     struct FloatImageRGB
     {
         Math::Matrix<float> r;
         Math::Matrix<float> g;
         Math::Matrix<float> b;
 
+        /**
+        * Constructor with dimensions.
+        *
+        * Allocates three separate matrices with the specified width and height,
+        * one for each color channel.
+        *
+        * @param width Image width in pixels
+        * @param height Image height in pixels
+        */
         FloatImageRGB(int width, int height) : r{width, height}, g{width, height}, b{width, height} {}
     };
 
-    constexpr FloatImageRGB ImageToFloatRGB(const Image& img);
-    constexpr Image FloatToImageRGB(const FloatImageRGB& fimg);
+    /**
+    * Convert 8-bit integer RGB image to floating-point representation.
+    *
+    * Extracts the R, G, B channels from an Image and converts pixel values
+    * from integer range [0, 255] to normalized float range [0.0, 1.0].
+    * The alpha channel is discarded. Useful before applying mathematical filters.
+    *
+    * @param img Input image with 8-bit RGBA pixels
+    * @return FloatImageRGB structure with separated, normalized channels
+    */
+    FloatImageRGB ImageToFloatRGB(const Image& img);
+
+    /**
+    * Convert floating-point RGB representation to 8-bit integer image.
+    *
+    * Combines three separate floating-point channel matrices back into a single Image.
+    * Converts pixel values from normalized float range [0.0, 1.0] to integer range [0, 255].
+    * Values are clamped and rounded appropriately. Alpha channel is set to fully opaque (255).
+    *
+    * @param fimg Input FloatImageRGB structure with normalized channels
+    * @return Image with 8-bit RGBA pixels
+    */
+    Image FloatToImageRGB(const FloatImageRGB& fimg);
 }

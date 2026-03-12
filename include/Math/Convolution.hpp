@@ -41,7 +41,41 @@ namespace Editor::Math
         Mirror
     };
 
+    /**
+    * Apply 1D convolution to a 1D signal.
+    *
+    * Performs a linear convolution of the input signal with the kernel.
+    * Constexpr allows compile-time evaluation if inputs are constant.
+    *
+    * @param input Input signal vector
+    * @param kernel Convolution kernel (filter coefficients)
+    * @return Convolved output signal
+    */
     constexpr std::vector<float> Convolve1D(const std::vector<float>& input, const std::vector<float>& kernel);
+
+    /**
+    * Apply 2D convolution to a 2D matrix.
+    *
+    * Performs a 2D convolution operation commonly used in image filtering.
+    * Constexpr allows compile-time evaluation if inputs are constant.
+    *
+    * @param input Input 2D matrix (image data)
+    * @param kernel Convolution kernel (2D filter)
+    * @return Convolved output matrix
+    */
     constexpr Matrix<float> Convolve2D(const Matrix<float>& input, const Matrix<float>& kernel);
+
+    /**
+    * Apply separable 2D convolution efficiently.
+    *
+    * Decomposes a 2D convolution into two 1D convolutions (horizontal then vertical).
+    * Significantly faster than full 2D convolution for separable kernels (e.g., Gaussian).
+    * Time complexity reduces from O(k²) to O(2k) where k is kernel size.
+    *
+    * @param input Input 2D matrix (image data)
+    * @param kernelX Horizontal 1D kernel
+    * @param kernelY Vertical 1D kernel
+    * @return Convolved output matrix
+    */
     Matrix<float> ConvolveSeparable( const Matrix<float>& input, const std::vector<float>& kernelX, const std::vector<float>& kernelY);
 }

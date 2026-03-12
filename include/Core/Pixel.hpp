@@ -39,14 +39,64 @@ namespace Editor
     {
     public:
 
-        bool operator==(const Pixel &) const;
-        bool operator!=(const Pixel &) const;
+        /**
+        * Equality operator.
+        *
+        * Compares two pixels for equality across all color channels (R, G, B, A).
+        *
+        * @param other The pixel to compare with
+        * @return true if all channels are equal, false otherwise
+        */
+        bool operator==(const Pixel& other) const;
 
+        /**
+        * Inequality operator.
+        *
+        * Compares two pixels for inequality.
+        *
+        * @param other The pixel to compare with
+        * @return true if any channel differs, false if all channels are equal
+        */
+        bool operator!=(const Pixel& other) const;
+
+        /**
+        * Get red channel value.
+        *
+        * @return 8-bit red channel (0-255)
+        */
         [[nodiscard]] constexpr uint8_t GetR() const { return m_r; }
+
+        /**
+        * Get green channel value.
+        *
+        * @return 8-bit green channel (0-255)
+        */
         [[nodiscard]] constexpr uint8_t GetG() const { return m_g; }
+
+        /**
+        * Get blue channel value.
+        *
+        * @return 8-bit blue channel (0-255)
+        */
         [[nodiscard]] constexpr uint8_t GetB() const { return m_b; }
+
+        /**
+        * Get alpha (transparency) channel value.
+        *
+        * @return 8-bit alpha channel (0-255, where 0 is transparent and 255 is opaque)
+        */
         [[nodiscard]] constexpr uint8_t GetA() const { return m_a; }
 
+        /**
+        * Set all pixel color channels.
+        *
+        * Sets the red, green, blue, and alpha channel values in one operation.
+        *
+        * @param r Red channel value (0-255)
+        * @param g Green channel value (0-255)
+        * @param b Blue channel value (0-255)
+        * @param a Alpha channel value (0-255)
+        */
         void SetPixel(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
     private:

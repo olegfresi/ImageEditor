@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: GaussianFilter.hpp
+ * File: Command.hpp
  * Author: olegfresi
- * Created: 24/02/26 18:26
+ * Created: 03/03/26 11:56
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,31 +29,17 @@
  * SOFTWARE.
  */
 #pragma once
-#include "../Core/Image.hpp"
-#include "../../include/Math/Convolution.hpp"
+#include "Document.hpp"
 
-namespace Editor::Filter
+namespace Editor
 {
-    /**
-    * Apply Gaussian blur filter to an image.
-    *
-    * Applies a Gaussian blur with the specified standard deviation.
-    * Uses separable convolution for efficient processing.
-    * The image is modified in-place.
-    *
-    * @param img Image to blur (modified in-place)
-    * @param sigma Standard deviation controlling blur strength
-    */
-    void GaussianBlur(Image& img, float sigma);
+    class Command
+    {
+    public:
+        Command() = default;
+        virtual ~Command() = default;
 
-    /**
-    * Generate a 3x3 box filter kernel.
-    *
-    * Creates a simple averaging filter where all weights are equal (1/9).
-    * Used as a fast alternative to Gaussian blur for simple smoothing.
-    * Constexpr allows compile-time evaluation.
-    *
-    * @return vector of 9 normalized box filter weights
-    */
-    constexpr std::vector<float> BoxFilter();
+        virtual void Execute(Document& doc) = 0;
+        virtual void Undo(Document& doc) = 0;
+    };
 }

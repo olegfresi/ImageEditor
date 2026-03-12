@@ -1,7 +1,9 @@
 #include "../../include/Core/Image.hpp"
-#include "../../thirdparty/stb_image.h"
+
+#include "../../include/Filters/Blur.hpp"
 #include "../../include/Math/Convolution.hpp"
 #include "../../include/Tools/Profiler.hpp"
+#include "../../thirdparty/stb_image.h"
 
 namespace Editor
 {
@@ -64,7 +66,7 @@ namespace Editor
 
     bool Image::LoadImage(const std::filesystem::path& filePath)
     {
-        Tools::Profiler profiler("LoadImage");
+        Tools::Profiler profiler("Image::LoadImage");
         int width, height, channels;
 
         unsigned char* data = stbi_load(
@@ -85,15 +87,7 @@ namespace Editor
         const size_t pixelCount = width * height;
         m_data.pixels.resize(pixelCount);
 
-        for (size_t i = 0; i < pixelCount; ++i)
-        {
-            m_data.pixels[i].SetPixel(
-                data[i*4 + 0],
-                data[i*4 + 1],
-                data[i*4 + 2],
-                data[i*4 + 3]
-            );
-        }
+        std::memcpy(m_data.pixels.data(), data, width * height * 4);
 
         stbi_image_free(data);
         return true;
@@ -173,8 +167,22 @@ namespace Editor
                 ToGrayScale();
                 break;
 
-            default:
+            case Filter::FilterType::Blur:
+                Filter::GaussianBlur(*this, 2.0f);
                 break;
+
+            case Filter::FilterType::Emboss:
+                break;
+
+            case Filter::FilterType::EdgeDetect:
+                break;
+
+            case Filter::FilterType::Invert:
+                break;
+
+            case Filter::FilterType::Sharpen:
+                break;
+
         }
     }
 
