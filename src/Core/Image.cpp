@@ -36,7 +36,8 @@ namespace Editor
 
     Image& Image::operator=(const Image& other)
     {
-        if (this == &other) return *this;
+        if (this == &other)
+            return *this;
 
         m_data.width    = other.m_data.width;
         m_data.height   = other.m_data.height;
