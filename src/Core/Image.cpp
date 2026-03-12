@@ -1,5 +1,4 @@
 #include "../../include/Core/Image.hpp"
-
 #include "../../include/Filters/Blur.hpp"
 #include "../../include/Math/Convolution.hpp"
 #include "../../include/Tools/Profiler.hpp"
@@ -132,16 +131,8 @@ namespace Editor
         int W = m_data.width;
         int H = m_data.height;
 
-        std::vector<Pixel> newPixels(W * H);
-
         for (int y = 0; y < H; ++y)
-            for (int x = 0; x < W; ++x)
-            {
-                int newX = W - 1 - x;
-                newPixels[y * W + newX] = m_data.pixels[y * W + x];
-            }
-
-        m_data.pixels.swap(newPixels);
+            std::reverse(m_data.pixels.begin() + (y * W), m_data.pixels.begin() + ((y + 1) * W));
     }
 
     void Image::FlipVertical()

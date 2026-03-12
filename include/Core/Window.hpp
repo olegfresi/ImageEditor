@@ -173,17 +173,6 @@ namespace Editor
         void LoadImageFromPath(const std::filesystem::path& path);
 
         /**
-        * Convert Image object to GTK Pixbuf.
-        *
-        * Converts the internal Image representation to a Gdk::Pixbuf
-        * suitable for GTK display.
-        *
-        * @param img The Image to convert
-        * @return Pixbuf representation of the image
-        */
-        Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
-
-        /**
         * Update display without reloading image data.
         *
         * Refreshes only the visual display without reprocessing the image.
@@ -207,7 +196,7 @@ namespace Editor
         *
         * @param lut 256-entry lookup table mapping input intensities to output
         */
-        void FastLut(const std::vector<uint8_t>& lut);
+        void FastLut(const std::array<uint8_t, 256>& lut);
 
 
         /**
@@ -219,7 +208,7 @@ namespace Editor
         *
         * @param lut 256-entry lookup table mapping input intensities to output
         */
-        void ApplyLUTToTempPixels(const std::vector<uint8_t>& lut);
+        void ApplyLUTToTempPixels(const std::array<uint8_t, 256>& lut);
 
         /**
         * Add an action to the action group with optional parameters.

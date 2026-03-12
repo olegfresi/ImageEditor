@@ -87,4 +87,22 @@ namespace Editor::Utils
 
         return result;
     }
+
+    Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img)
+    {
+        const int width = img.GetWidth();
+        const int height = img.GetHeight();
+
+        auto temp_pixbuf = Gdk::Pixbuf::create_from_data(
+            reinterpret_cast<const guint8*>(img.GetPixelData().data()),
+            Gdk::Colorspace::RGB,
+            true,
+            8,
+            width,
+            height,
+            width * 4
+        );
+
+        return temp_pixbuf->copy();
+    }
 }

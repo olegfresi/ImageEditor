@@ -62,9 +62,9 @@ namespace Editor::Widget
         * Generate 256 entry LUT for image processing.
         *
         * Values are converted from normalized [0,1] to integer range [0,255].
-        * @return vector representing integer range
+        * @return array representing integer range
         */
-        std::vector<uint8_t> GetLUT() const;
+        const std::array<uint8_t, 256>& GetLUT() const;
 
         /**
         * Signal emitted when curve changes.
@@ -101,6 +101,7 @@ namespace Editor::Widget
     private:
         std::vector<ControlPoint> m_points{};
         std::vector<float> m_curveCache{};
+        std::array<uint8_t, 256> m_lutCache;
         std::array<float,256> m_histogram{};
 
         int m_selectedIdx = -1;
@@ -108,6 +109,8 @@ namespace Editor::Widget
 
         double m_dragStartX = 0.0;
         double m_dragStartY = 0.0;
+
+        Cairo::RefPtr<Cairo::ImageSurface> m_histSurface;
 
         sigc::signal<void()> m_signalCurveChanged;
         sigc::signal<void()> m_signalDragFinished;

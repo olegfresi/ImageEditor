@@ -280,16 +280,26 @@ namespace Editor
     void Window::UpdateFromImage(bool updateHistogram)
     {
         UpdateDisplayOnly();
-        if(updateHistogram) m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
+
+        if(updateHistogram)
+            m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
     }
 
     void Window::UpdateDisplayOnly()
     {
-        auto bytes = Glib::Bytes::create(m_image.GetPixelData().data(), m_image.GetPixelData().size() * 4);
-        auto texture = Gdk::MemoryTexture::create(
-                m_image.GetWidth(), m_image.GetHeight(),
-                Gdk::MemoryTexture::Format::R8G8B8A8, bytes, m_image.GetWidth() * 4
+        auto bytes = Glib::Bytes::create(
+            m_image.GetPixelData().data(),
+            m_image.GetPixelData().size() * sizeof(Pixel)
         );
+
+        auto texture = Gdk::MemoryTexture::create(
+            m_image.GetWidth(),
+            m_image.GetHeight(),
+            Gdk::MemoryTexture::Format::R8G8B8A8,
+            bytes,
+            m_image.GetWidth() * 4
+        );
+
         m_picture.set_paintable(texture);
     }
 
@@ -302,7 +312,7 @@ namespace Editor
         m_histogram.queue_draw();
     }
 
-    void Window::FastLut(const std::vector<uint8_t>& lut)
+    void Window::FastLut(const std::array<uint8_t, 256>& lut)
     {
         const auto* src = reinterpret_cast<const uint8_t*>(m_originalPixelsBackup.data());
         auto* dst = reinterpret_cast<uint8_t*>(m_image.GetPixelData().data());
@@ -317,42 +327,13 @@ namespace Editor
         }
     }
 
-    void Window::ApplyLUTToTempPixels(const std::vector<uint8_t>& lut)
+    void Window::ApplyLUTToTempPixels(const std::array<uint8_t, 256>& lut)
     {
-        std::vector<Pixel> tempPixels = m_originalPixelsBackup;
-        for(auto& px : tempPixels)
-        {
-            uint8_t r = px.GetR();
-            uint8_t g = px.GetG();
-            uint8_t b = px.GetB();
-            px.SetPixel(lut[r], lut[g], lut[b], px.GetA());
-        }
+        FastLut(lut);
 
-        // Update histogram
-        m_histogram.SetImage(tempPixels, m_image.GetWidth(), m_image.GetHeight());
+        m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
         m_histogram.queue_draw();
     }
 
-    Glib::RefPtr<Gdk::Pixbuf> Window::PixbufFromImage(const Image& img)
-    {
-        const int width = img.GetWidth();
-        const int height = img.GetHeight();
-        const int channels = img.GetChannels();
 
-        if(!m_pixbuf)
-        {
-            m_pixbuf = Gdk::Pixbuf::create_from_data(
-                    reinterpret_cast<const guint8*>(img.GetPixelData().data()),
-                    Gdk::Colorspace::RGB,
-                    true,
-                    8,
-                    width,
-                    height,
-                    width * channels
-                    );
-        }
-        m_picture.queue_draw();
-
-        return m_pixbuf;
-    }
 }

@@ -22,11 +22,12 @@ namespace Editor::Widget
         const Pixel* data = pixels.data();
         const size_t total = pixels.size();
 
-        for(size_t i = 0; i < total; i += stride)
+        const uint8_t* p = reinterpret_cast<const uint8_t*>(data);
+        for(size_t i = 0; i < total * 4; i += 4 * stride)
         {
-            m_r[data[i].GetR()]++;
-            m_g[data[i].GetG()]++;
-            m_b[data[i].GetB()]++;
+            m_r[p[i]]++;     // R
+            m_g[p[i + 1]]++; // G
+            m_b[p[i + 2]]++; // B
         }
 
         queue_draw();

@@ -29,6 +29,8 @@
  * SOFTWARE.
  */
 #pragma once
+#include <gdkmm/pixbuf.h>
+#include <glibmm/refptr.h>
 #include "Image.hpp"
 #include "../Math/Matrix.hpp"
 
@@ -82,4 +84,16 @@ namespace Editor::Utils
     * @return Image with 8-bit RGBA pixels
     */
     Image FloatToImageRGB(const FloatImageRGB& fimg);
+
+    /**
+    * Convert Image object to GTK Pixbuf.
+    *
+    * Converts the internal Image representation to a Gdk::Pixbuf
+    * suitable for GTK display.
+    *
+    * @param img The Image to convert
+    * @return Pixbuf representation of the image
+    */
+    Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
+    Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
 }
