@@ -10,19 +10,25 @@ pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 add_executable(ImageEditor
         include/Tools/Profiler.hpp
 
-        src/main.cpp
         src/Core/Application.cpp
         src/Core/Image.cpp
+        src/Core/FileManager.cpp
+        src/Core/Document.cpp
+        src/Core/Window.cpp
+        src/Core/Utils.cpp
+        src/Core/Pixel.cpp
+        src/Core/Processing.cpp
+
         src/Filter/Filter.cpp
         src/Filter/Blur.cpp
-        src/Core/Window.cpp
-        src/Core/Pixel.cpp
+
         src/Math/Convolution.cpp
-        src/Core/Utils.cpp
         src/Math/Gaussian.cpp
-        src/Core/Document.cpp
+
         src/Widget/Histogram.cpp
         src/Widget/ToneCurve.cpp
+
+        src/main.cpp
         thirdparty/stb_image.cpp
 )
 

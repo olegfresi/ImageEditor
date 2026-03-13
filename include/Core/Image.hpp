@@ -29,13 +29,17 @@
  * SOFTWARE.
  */
 #pragma once
-#include <filesystem>
+#include <functional>
 #include <vector>
+#include <span>
 #include "Pixel.hpp"
-#include "../Filters/Filter.hpp"
 
 namespace Editor
 {
+
+    using PixelTransformer = std::function<void(Pixel&)>;
+    using IndexedPixelTransformer = std::function<void(Pixel&, int, int)>;
+
     /**
     * Container for raw image data.
     *
@@ -59,22 +63,8 @@ namespace Editor
     class Image
     {
     public:
-
         /**
-        * Constructor with file path and dimensions.
-        *
-        * Creates an image with specified dimensions and initializes pixel storage.
-        * Optionally loads image data from a file.
-        *
-        * @param filePath Path to the image file to load
-        * @param width Image width in pixels
-        * @param height Image height in pixels
-        * @param channels Number of color channels (typically 4 for RGBA)
-        */
-        Image(std::filesystem::path filePath, int width, int height, int channels);
-
-        /**
-        * Constructor with dimensions only.
+        * Constructor with dimensions.
         *
         * Creates an empty image with specified dimensions.
         * Pixel data is uninitialized.
@@ -84,6 +74,19 @@ namespace Editor
         * @param channels Number of color channels (typically 4 for RGBA)
         */
         Image(int width, int height, int channels);
+
+        /**
+        * Constructor with dimensions and pixel data.
+        *
+        * Creates an image with specified dimensions and initializes pixel data from the provided vector.
+        * The pixel vector should contain width * height elements.
+        *
+        * @param width Image width in pixels
+        * @param height Image height in pixels
+        * @param channels Number of color channels (typically 4 for RGBA)
+        * @param pixels Vector of pixel data to initialize the image with
+        */
+        Image(int width, int height, int channels, std::vector<Pixel> pixels);
 
         /**
         * Copy constructor.
@@ -124,60 +127,6 @@ namespace Editor
         * @return Reference to this image
         */
         Image& operator=(Image&& other) noexcept;
-
-        /**
-        * Load image from file.
-        *
-        * Reads image data from disk using the stb_image library.
-        * Supported formats: PNG, JPG, BMP, TGA, and others.
-        * Converts loaded image to RGBA format internally.
-        *
-        * @param filePath Path to the image file
-        * @return true if loading succeeded, false otherwise
-        */
-        bool LoadImage(const std::filesystem::path& filePath);
-
-        /**
-        * Rotate image 90 degrees clockwise.
-        *
-        * Modifies the image in-place.
-        * Swaps width and height, rearranges pixel data.
-        */
-        void Rotate();
-
-        /**
-        * Flip image horizontally (mirror across vertical axis).
-        *
-        * Modifies the image in-place.
-        * Left-right pixels are reversed.
-        */
-        void FlipHorizontal();
-
-        /**
-        * Flip image vertically (mirror across horizontal axis).
-        *
-        * Modifies the image in-place.
-        * Top-bottom pixels are reversed.
-        */
-        void FlipVertical();
-
-        /**
-        * Apply a filter to the image.
-        *
-        * Applies the specified filter type to modify image appearance.
-        * Filter is applied in-place to the current image.
-        *
-        * @param type The filter type to apply (e.g., blur, edge detection)
-        */
-        void ApplyFilter(Filter::FilterType type);
-
-        /**
-        * Convert image to grayscale.
-        *
-        * Uses standard luminance formula to convert RGB to single intensity value.
-        * Image is modified in-place while preserving alpha channel.
-        */
-        void ToGrayScale();
 
         /**
         * Set a single pixel color.
@@ -226,28 +175,74 @@ namespace Editor
         [[nodiscard]] int GetChannels() const { return m_data.channels; }
 
         /**
-        * Get const reference to pixel data.
+        * Get a read-only view of the image pixel data.
         *
-        * Provides read-only access to the underlying pixel vector.
-        * Pixels are stored in row-major order.
+        * Returns a span providing safe, non-owning access to the underlying
+        * pixel buffer. This allows for efficient iteration and reading without
+        * exposing the internal vector's management functions (like resize or clear).
         *
-        * @return Const reference to the pixel data vector
+        * @return A constant span of pixels
         */
-        [[nodiscard]] const std::vector<Pixel>& GetPixelData() const { return m_data.pixels; }
+        [[nodiscard]] std::span<const Pixel> GetPixelData() const { return m_data.pixels; }
 
         /**
-        * Get mutable reference to pixel data.
+        * Get a mutable view of the image pixel data.
         *
-        * Provides read-write access to the underlying pixel vector.
-        * Pixels are stored in row-major order.
-        * Use with caution to avoid corrupting image state.
+        * Returns a span that allows modification of individual pixels while
+        * preventing changes to the container's structure. This is the preferred
+        * way to pass pixel data to external processing functions like LUT applications.
         *
-        * @return Mutable reference to the pixel data vector
+        * @return A mutable span of pixels
         */
-        [[nodiscard]] std::vector<Pixel>& GetPixelData() { return m_data.pixels; }
+        [[nodiscard]] std::span<Pixel> GetPixelData() { return m_data.pixels; }
+
+        /**
+        * Set the image width.
+        *
+        * Updates the width dimension of the image. This should typically be used
+        * in conjunction with resizing pixel data to maintain image integrity.
+        * Changing width without updating pixel data may cause inconsistencies.
+        *
+        * @param width New width value in pixels
+        */
+        void SetWidth(int width) { m_data.width = width; }
+
+        /**
+        * Set the image height.
+        *
+        * Updates the height dimension of the image. This should typically be used
+        * in conjunction with resizing pixel data to maintain image integrity.
+        * Changing height without updating pixel data may cause inconsistencies.
+        *
+        * @param height New height value in pixels
+        */
+        void SetHeight(int height) { m_data.height = height; }
+
+        /**
+        * Apply a transformation to every pixel in the image.
+        *
+        * Iterates through all pixel data and applies the provided transformer
+        * function to each pixel. This is an internal iterator that ensures
+        * safe access to pixel data without exposing the underlying container.
+        * It is best suited for point operations like grayscale or brightness.
+        *
+        * @param transformer A function or lambda that accepts a Pixel reference
+        */
+        void ApplyTransformation(const PixelTransformer& transformer);
+
+        /**
+        * Apply a coordinate-aware transformation to every pixel in the image.
+        *
+        * Iterates through all pixel data using a nested row-major loop and
+        * provides the current (x, y) coordinates to the transformer function.
+        * This is essential for transformations where the new state of a pixel
+        * depends on its spatial position, such as rotations, flips, or gradients.
+        *
+        * @param transformer A function or lambda that accepts a Pixel reference and (x, y) coordinates
+        */
+        void ApplyIndexedTransformation(const IndexedPixelTransformer& transformer);
 
     private:
         ImageData m_data;
-        std::filesystem::path m_path;
     };
 }

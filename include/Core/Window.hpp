@@ -29,6 +29,7 @@
  * SOFTWARE.
  */
 #pragma once
+#include <filesystem>
 #include <string>
 #include <giomm/simpleactiongroup.h>
 #include <gtkmm/box.h>
@@ -37,7 +38,7 @@
 #include <gtkmm/picture.h>
 #include <gtkmm/label.h>
 #include <gtkmm/frame.h>
-#include "Image.hpp"
+#include "Document.hpp"
 #include "../Filters/Filter.hpp"
 #include "../Widget/Histogram.hpp"
 #include "../Widget/ToneCurve.hpp"
@@ -67,6 +68,8 @@ namespace Editor
         */
         Window(int width, int height, std::string title);
 
+        ~Window() override;
+
         /**
         * Apply a filter effect to the current image.
         *
@@ -76,6 +79,41 @@ namespace Editor
         * @param filterType The type of filter to apply (blur, edge detection, etc.)
         */
         void ApplyFilter(Filter::FilterType filterType);
+
+        /**
+        * Set the document associated with this window.
+        *
+        * Associates a document with the window for editing and display.
+        * Updates the window's image and display accordingly.
+        *
+        * @param document Pointer to the document to set.
+        */
+        void SetDocument(Document* document);
+
+        /**
+        * Set the callback for opening documents.
+        *
+        * Sets a callback function that will be called when the user wants to open a document.
+        * This allows the window to communicate with the application for file operations.
+        *
+        * @param cb The callback function to set, taking a file path as parameter.
+        */
+        void SetOpenDocumentCallback(std::function<void(const std::filesystem::path&)> cb);
+
+        /**
+        * Load a document into the window.
+        *
+        * Loads the document's image data and updates the window's display and widgets.
+        * Sets up the image for editing and initializes related components.
+        *
+        * @param doc Pointer to the document to load.
+        */
+        void LoadDocument(Document* doc);
+
+
+        sigc::signal<void()> signal_new_document;
+        sigc::signal<void()> signal_save_document;
+        std::function<void(const std::filesystem::path&)> m_openDocumentCallback;
 
     protected:
         /**
@@ -117,32 +155,15 @@ namespace Editor
         */
         void OnAbout();
 
+        /**
+        * Grayscale filter handler.
+        *
+        * Converts the current image to grayscale by applying a luminance-based
+        * transformation. Updates the display and histogram after conversion.
+        */
+        void OnGrayScale();
+
     private:
-        int m_width;
-        int m_height;
-        std::string m_title;
-        Image m_image;
-
-        std::vector<uint8_t> m_displayBuffer;
-        std::vector<Pixel> m_originalPixelsBackup;
-        std::string m_currentFilePath;
-
-        Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
-        Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
-        Gtk::Label m_infoLabel{"No image loaded"};
-        Gtk::Picture m_picture;
-        Gtk::Frame m_imageFrame;
-        Gtk::ScrolledWindow m_scrolled;
-        Glib::RefPtr<Gdk::Pixbuf> m_pixbuf;
-        Glib::RefPtr<Gdk::Pixbuf> m_originalPixbuf;
-        Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
-
-        Editor::Widget::ToneCurveWidget m_toneCurve;
-        Editor::Widget::HistogramWidget m_histogram;
-
-        Gtk::Frame m_histogramFrame;
-        Gtk::Frame m_curveFrame;
-        Gtk::Box m_controlsBox;
 
         /**
         * Initialize and setup the application menu.
@@ -153,34 +174,6 @@ namespace Editor
         void SetupMenu();
 
         /**
-        * Update window display from current image.
-        *
-        * Converts image data to pixbuf format and updates the display.
-        * Optionally updates the histogram visualization.
-        *
-        * @param updateHistogram Whether to recalculate the histogram (can be slow)
-        */
-        void UpdateFromImage(bool updateHistogram);
-
-        /**
-        * Load an image from a file path.
-        *
-        * Reads image data from disk and updates all display elements.
-        * Stores the file path for future save operations.
-        *
-        * @param path Path to the image file to load
-        */
-        void LoadImageFromPath(const std::filesystem::path& path);
-
-        /**
-        * Update display without reloading image data.
-        *
-        * Refreshes only the visual display without reprocessing the image.
-        * Faster than full update when only display needs refresh.
-        */
-        void UpdateDisplayOnly();
-
-        /**
         * Tone curve drag finished handler.
         *
         * Called when the user finishes adjusting the tone curve.
@@ -189,26 +182,56 @@ namespace Editor
         void OnCurveDragFinished();
 
         /**
-        * Apply a tone curve LUT to the image quickly.
+        * Update the display from the current document's image data.
         *
-        * Uses a precomputed lookup table for fast pixel intensity remapping.
-        * Much faster than computing the curve for each pixel individually.
-        *
-        * @param lut 256-entry lookup table mapping input intensities to output
+        * Retrieves the image from the associated document and creates a texture
+        * to display it in the picture widget. This method refreshes the visual
+        * representation of the document's current state.
         */
-        void FastLut(const std::array<uint8_t, 256>& lut);
-
+        void UpdateDisplayFromDocument();
 
         /**
-        * Apply a lookup table transformation to temporary pixel data.
+        * Notify that the image has changed and update the display.
         *
-        * Modifies the temporary pixel buffer using the provided LUT for
-        * real-time preview of tone curve adjustments without affecting
-        * the original image data.
+        * Called when the image data has been modified to refresh the visual display
+        * and optionally update the histogram visualization. Ensures the UI stays
+        * synchronized with the current image state.
         *
-        * @param lut 256-entry lookup table mapping input intensities to output
+        * @param updateHistogram Whether to recalculate the histogram (can be slow)
         */
-        void ApplyLUTToTempPixels(const std::array<uint8_t, 256>& lut);
+        void NotifyImageChanged(bool updateHistogram);
+
+        /**
+        * Initialize drag and drop functionality for the window.
+        *
+        * Sets up GTK drag and drop handlers to allow users to drag files
+        * into the window for opening. Configures the drop target and signal connections.
+        */
+        void SetupDragAndDrop();
+
+        /**
+        * Handle drag and drop file drop events.
+        *
+        * Called when a file is dropped onto the window. Processes the dropped
+        * data and attempts to open the file as an image document.
+        *
+        * @param value The dropped value containing file information
+        * @param x X-coordinate of the drop location
+        * @param y Y-coordinate of the drop location
+        * @return True if the drop was handled successfully, false otherwise
+        */
+        bool OnDrop(const Glib::ValueBase& value, double x, double y) const;
+
+        /**
+        * Process a file path string for opening.
+        *
+        * Validates and handles a file path string, typically from drag and drop
+        * or other external sources. Attempts to open the file as a document.
+        *
+        * @param path_str The file path string to process
+        * @return True if the file was processed successfully, false otherwise
+        */
+        bool HandleFilePath(const std::string& path_str) const;
 
         /**
         * Add an action to the action group with optional parameters.
@@ -220,16 +243,46 @@ namespace Editor
         * @param callable The callback function or lambda
         * @param args Optional arguments to capture in the callback
         */
-        template <typename Callable, typename... Args>
+        template<typename Callable, typename... Args>
         void AddAction(const std::string& actionName, Callable&& callable, Args&&... args)
         {
             m_actionGroup->add_action(actionName,
-                [this,
-                 func = std::forward<Callable>(callable),
-                 ...capturedArgs = std::forward<Args>(args)]() mutable
-                {
-                    std::invoke(func, this, capturedArgs...);
-                });
+                                      [this,
+                                          func = std::forward<Callable>(callable),
+                                          ...capturedArgs = std::forward<Args>(args)]() mutable {
+                                          std::invoke(func, this, capturedArgs...);
+                                      });
         }
+
+        int m_width;
+        int m_height;
+
+        std::string m_title;
+        std::string m_currentFilePath;
+
+        Document* m_document = nullptr;
+
+        std::vector<uint8_t> m_displayBuffer;
+        std::vector<Pixel> m_originalPixelsBackup;
+
+        Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
+        Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
+        Gtk::Box m_controlsBox;
+
+        Gtk::Picture m_picture;
+        Gtk::ScrolledWindow m_scrolled;
+        Gtk::Label m_infoLabel{"No image loaded"};
+
+        Gtk::Frame m_imageFrame;
+        Gtk::Frame m_histogramFrame;
+        Gtk::Frame m_curveFrame;
+
+        Glib::RefPtr<Gdk::Pixbuf> m_pixbuf;
+        Glib::RefPtr<Gdk::Pixbuf> m_originalPixbuf;
+        Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
+
+        Editor::Widget::ToneCurveWidget m_toneCurve;
+        Editor::Widget::HistogramWidget m_histogram;
     };
 }
+

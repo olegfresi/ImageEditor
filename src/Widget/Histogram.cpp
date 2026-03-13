@@ -1,6 +1,7 @@
 #include "../../include/Widget/Histogram.hpp"
 #include <algorithm>
 
+
 namespace Editor::Widget
 {
     HistogramWidget::HistogramWidget()
@@ -9,28 +10,58 @@ namespace Editor::Widget
         set_draw_func(sigc::mem_fun(*this, &HistogramWidget::DrawHistogram));
     }
 
-    void HistogramWidget::SetImage(const std::vector<Pixel>& pixels, int, int)
+    std::array<float, 256> HistogramWidget::GetLuminanceHistogram() const
     {
-        UpdateFromBuffer(pixels, 1);
+        std::array<float, 256> lum{};
+        float maxv = 0.0f;
+
+        for(int i = 0; i < 256; i++)
+        {
+            lum[i] = 0.2126f * static_cast<float>(m_r[i]) +
+                     0.7152f * static_cast<float>(m_g[i]) +
+                     0.0722f * static_cast<float>(m_b[i]);
+            maxv = std::max(maxv, lum[i]);
+        }
+
+        if(maxv > 0)
+            for(auto& v : lum)
+                v /= maxv;
+
+        return lum;
     }
 
-    void HistogramWidget::UpdateFromBuffer(const std::vector<Pixel>& pixels, size_t stride)
+    void HistogramWidget::UpdateFromBuffer(std::span<const Pixel> pixels, size_t stride)
     {
+        // 1. Reset histograms
         m_r.fill(0);
         m_g.fill(0);
         m_b.fill(0);
+
+        // 2. Safety check: spans handle empty data gracefully
+        if (pixels.empty()) return;
+
+        // 3. Setup pointers
+        // .data() on a span returns the pointer to the first element
         const Pixel* data = pixels.data();
         const size_t total = pixels.size();
 
+        // Safety check: ensure stride is at least 1 to avoid infinite loop
+        size_t actual_stride = (stride < 1) ? 1 : stride;
+
         const uint8_t* p = reinterpret_cast<const uint8_t*>(data);
-        for(size_t i = 0; i < total * 4; i += 4 * stride)
+
+        // 4. Computation loop
+        // Each pixel is 4 bytes (RGBA). We multiply stride by 4 to jump correctly.
+        for(size_t i = 0; i < total * 4; i += 4 * actual_stride)
         {
-            m_r[p[i]]++;     // R
-            m_g[p[i + 1]]++; // G
-            m_b[p[i + 2]]++; // B
+            m_r[p[i]]++;     // Red
+            m_g[p[i + 1]]++; // Green
+            m_b[p[i + 2]]++; // Blue
         }
 
+        // 5. UI and Signal update
         queue_draw();
+        m_signalHistogramUpdated.emit();
     }
 
     void HistogramWidget::DrawHistogram(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height) const
@@ -109,23 +140,8 @@ namespace Editor::Widget
         cr->set_operator(Cairo::Context::Operator::OVER);
     }
 
-    std::array<float, 256> HistogramWidget::GetLuminanceHistogram() const
+    void HistogramWidget::SetImage(std::span<const Pixel> pixels, int width, int height, int step)
     {
-        std::array<float, 256> lum{};
-        float maxv = 0.0f;
-
-        for(int i = 0; i < 256; i++)
-        {
-            lum[i] = 0.2126f * static_cast<float>(m_r[i]) +
-                     0.7152f * static_cast<float>(m_g[i]) +
-                     0.0722f * static_cast<float>(m_b[i]);
-            maxv = std::max(maxv, lum[i]);
-        }
-
-        if(maxv > 0)
-            for(auto& v : lum)
-                v /= maxv;
-
-        return lum;
+        UpdateFromBuffer(pixels, step);
     }
 }

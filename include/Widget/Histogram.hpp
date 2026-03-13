@@ -30,6 +30,7 @@
  */
 #pragma once
 #include <array>
+#include <span>
 #include <gtkmm/drawingarea.h>
 #include "../Core/Pixel.hpp"
 
@@ -49,17 +50,6 @@ namespace Editor::Widget
         * - histogram data arrays (R, G, B channels with 256 entries each)
         */
         HistogramWidget();
-
-        /**
-        * Set the image data to compute the histogram from.
-        *
-        * Computes histogram values for all RGB channels and triggers
-        * a redraw of the widget to display the updated histogram.
-        * @param pixels: flat vector of Pixel objects
-        * @param width: width of image
-        * @param height: height of image
-        */
-        void SetImage(const std::vector<Pixel>& pixels, int width, int height);
 
         /**
         * Get the histogram data for the Red channel.
@@ -102,16 +92,38 @@ namespace Editor::Widget
         * This is useful for processing buffers with padding or non-contiguous memory layouts.
         * Emits the histogram updated signal after computation.
         *
-        * @param pixels: flat vector of Pixel objects
+        * @param pixels: View on Pixel objects
         * @param stride: number of pixels per row (including padding if any)
         */
-        void UpdateFromBuffer(const std::vector<Pixel>& pixels, size_t stride);
+        void UpdateFromBuffer(std::span<const Pixel> pixels, size_t stride);
+
+        /**
+        * Set the image data for histogram computation with sampling step.
+        *
+        * Computes histogram values for all RGB channels from the provided
+        * pixel buffer, using the specified step for sampling (e.g., every nth pixel).
+        * This allows for faster computation on large images by subsampling.
+        * Emits the histogram updated signal after computation.
+        *
+        * @param pixels View of Pixel objects representing the image
+        * @param width Width of the image in pixels
+        * @param height Height of the image in pixels
+        * @param step Sampling step (1 = every pixel, 2 = every other pixel, etc.)
+        */
+        void SetImage(std::span<const Pixel> pixels, int width, int height, int step = 1);
 
     private:
 
         /**
-        * Draw the histogram using Cairo context
-        * Each channel is drawn as a semi-transparent overlay
+        * Draw the histogram visualization using Cairo.
+        *
+        * Renders the RGB channel histograms as overlaid graphs in the drawing area.
+        * Uses the Cairo graphics context to draw lines representing the frequency
+        * distribution of pixel intensities for each color channel.
+        *
+        * @param cr Cairo graphics context for drawing
+        * @param width Width of the drawing area
+        * @param height Height of the drawing area
         */
         void DrawHistogram(const Cairo::RefPtr<Cairo::Context>& cr, int width, int height) const;
 

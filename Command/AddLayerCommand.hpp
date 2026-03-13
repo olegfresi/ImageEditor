@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: File.hpp
+ * File: AddLayerCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:44
+ * Created: 12/03/26 21:36
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -30,16 +30,10 @@
  */
 #pragma once
 
-namespace Editor
+namespace Editor::Command
 {
-    class File
+    class AddLayerCommand
     {
-    public:
-        File() = default;
 
-        [[nodiscard]] std::filesystem::path GetPath() const { return m_filePath; }
-
-    private:
-        std::filesystem::path m_filePath{};
     };
 }

@@ -31,6 +31,7 @@
 #pragma once
 #include <gdkmm/pixbuf.h>
 #include <glibmm/refptr.h>
+#include <span>
 #include "Image.hpp"
 #include "../Math/Matrix.hpp"
 
@@ -95,5 +96,20 @@ namespace Editor::Utils
     * @return Pixbuf representation of the image
     */
     Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
-    Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img);
+
+    /**
+    * Apply a lookup table transformation to pixel data.
+    *
+    * Transforms the RGB components of pixels using a 256-entry lookup table.
+    * Each color channel value (0-255) is mapped through the LUT to produce
+    * the output pixel. The alpha channel remains unchanged to preserve transparency.
+    * Commonly used for tone curve adjustments and color corrections.
+    *
+    * @param targetPixels Output pixel buffer to store transformed pixels
+    * @param sourceBackup Input pixel buffer with original pixel data
+    * @param lut 256-entry lookup table mapping input intensities (0-255) to output intensities (0-255)
+    */
+    void ApplyLut(std::span<Pixel> targetPixels,
+                  std::span<const Pixel> sourceBackup,
+                  const std::array<uint8_t, 256>& lut);
 }

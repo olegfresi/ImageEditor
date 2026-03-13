@@ -4,7 +4,7 @@
 
 namespace Editor::Widget
 {
-    ToneCurveWidget::ToneCurveWidget()
+    ToneCurveWidget::ToneCurveWidget() : m_lutCache{}
     {
         set_size_request(256, 256);
 

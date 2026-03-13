@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: ImageProcessing.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 12/03/26 21:19
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,17 +29,49 @@
  * SOFTWARE.
  */
 #pragma once
-#include "Document.hpp"
+#include "../../include/Core/Image.hpp"
 
 namespace Editor
 {
-    class Command
+    class Processor
     {
     public:
-        Command() = default;
-        virtual ~Command() = default;
 
-        virtual void Execute(Document& doc) = 0;
-        virtual void Undo(Document& doc) = 0;
+        /**
+        * Convert an image from RGB color to grayscale.
+        *
+        * Transforms a color image into grayscale by computing luminance from RGB channels
+        *
+        * The operation modifies the image in-place, converting all pixels while preserving
+        * the alpha channel for transparency information. The resulting image maintains
+        * the same dimensions and pixel count as the original.
+        *
+        * @param image Reference to the Image object to convert.
+        */
+        static void ToGrayScale(Image& image);
+
+        /**
+        * Rotate image 90 degrees clockwise.
+        *
+        * Modifies the image in-place.
+        * Swaps width and height, rearranges pixel data.
+        */
+        static void Rotate(Image& image);
+
+        /**
+        * Flip image horizontally (mirror across vertical axis).
+        *
+        * Modifies the image in-place.
+        * Left-right pixels are reversed.
+        */
+        static void FlipHorizontal(Image& image);
+
+        /**
+        * Flip image vertically (mirror across horizontal axis).
+        *
+        * Modifies the image in-place.
+        * Top-bottom pixels are reversed.
+        */
+        static void FlipVertical(Image& image);
     };
 }

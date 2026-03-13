@@ -1,4 +1,3 @@
-#include <iostream>
 #include <giomm/menu.h>
 #include <gtkmm/popovermenubar.h>
 #include <gtkmm/filedialog.h>
@@ -7,17 +6,24 @@
 #include <gtkmm/droptarget.h>
 #include <gdkmm/memorytexture.h>
 #include <glibmm/main.h>
+#include <gdk/gdk.h>
+#include <gio/gio.h>
+#include <glib.h>
 #include "../../include/Core/Window.hpp"
-#include "../../include/Filters/Blur.hpp"
+#include "../../include/Core/FileManager.hpp"
+#include "../../include/Core/Utils.hpp"
 #include "../../include/Tools/Profiler.hpp"
+#include "../../include/Core/Processing.hpp"
+
 
 namespace Editor
 {
     Window::Window(int width, int height, std::string title)
-        : m_width{width}, m_height{height}, m_title{std::move(title)}, m_image{"", width, height, 4} {
-
+        : m_width{width}, m_height{height}, m_title{std::move(title)}
+    {
         set_default_size(m_width, m_height);
         set_title(m_title);
+        set_hide_on_close(true);
         set_resizable(true);
 
         // --- ACTION GROUP SETUP ---
@@ -27,12 +33,24 @@ namespace Editor
         AddAction("rotate", &Window::OnRotate);
         AddAction("flip", &Window::OnFlip);
         AddAction("about", &Window::OnAbout);
-        AddAction("grayscale", &Window::ApplyFilter, Filter::FilterType::GrayScale);
+        AddAction("grayscale", &Window::OnGrayScale);
 
-        m_actionGroup->add_action("blur", [this] { ApplyFilter(Filter::FilterType::Blur); UpdateFromImage(true); });
-        m_actionGroup->add_action("sharpen", [this] { ApplyFilter(Filter::FilterType::Sharpen); UpdateFromImage(true); });
-        m_actionGroup->add_action("emboss", [this] { ApplyFilter(Filter::FilterType::Emboss); UpdateFromImage(true); });
-        m_actionGroup->add_action("edge_detect", [this] { ApplyFilter(Filter::FilterType::EdgeDetect); UpdateFromImage(true); });
+        m_actionGroup->add_action("blur", [this] {
+            ApplyFilter(Filter::FilterType::Blur);
+            NotifyImageChanged(true);
+        });
+        m_actionGroup->add_action("sharpen", [this] {
+            ApplyFilter(Filter::FilterType::Sharpen);
+            NotifyImageChanged(true);
+        });
+        m_actionGroup->add_action("emboss", [this] {
+            ApplyFilter(Filter::FilterType::Emboss);
+            NotifyImageChanged(true);
+        });
+        m_actionGroup->add_action("edge_detect", [this] {
+            ApplyFilter(Filter::FilterType::EdgeDetect);
+            NotifyImageChanged(true);
+        });
 
         insert_action_group("win", m_actionGroup);
 
@@ -62,192 +80,176 @@ namespace Editor
 
         auto menubar = Gtk::make_managed<Gtk::PopoverMenuBar>(menu);
 
-        // --- UI LAYOUT ---
+        // --- IMAGE DISPLAY SETUP ---
         m_picture.set_hexpand(true);
         m_picture.set_vexpand(true);
         m_picture.set_keep_aspect_ratio(true);
+        m_picture.set_can_shrink(true);
+
+        m_picture.set_margin_start(30);
+        m_picture.set_margin_end(30);
+        m_picture.set_margin_top(5);
+        m_picture.set_margin_bottom(5);
 
         m_infoLabel.set_markup("<span color='gray'> Select an image to start editing </span>");
+        m_infoLabel.set_margin_bottom(5);
 
-        // --- UI LAYOUT CORRECTION ---
-        m_controlsBox.set_orientation(Gtk::Orientation::HORIZONTAL);
-        m_controlsBox.set_spacing(20); // More breathing room between boxes
-        m_controlsBox.set_margin_bottom(20);
-        m_controlsBox.set_margin_start(20);
-        m_controlsBox.set_margin_end(20);
-
-        // Histogram: must expand to fill the left side
-        m_histogramFrame.set_label("RGB Histogram");
-        m_histogramFrame.set_hexpand(true);
-        m_histogramFrame.set_vexpand(true);
-        m_histogram.set_size_request(-1, 200);
-        m_histogramFrame.set_child(m_histogram);
-
-        // Tone Curve: should have a fixed or proportional size to stay square
-        m_curveFrame.set_label("Tone Curve");
-        m_curveFrame.set_hexpand(true);
-        m_curveFrame.set_vexpand(true);
-        m_curveFrame.set_child(m_toneCurve);
-
-        // Ensure the widgets inside the frames fill the space
-        m_histogram.set_hexpand(true);
-        m_histogram.set_vexpand(true);
-        m_toneCurve.set_hexpand(true);
-        m_toneCurve.set_vexpand(true);
-        m_toneCurve.set_size_request(256, 256);
-
-        // Centering logic to avoid "empty space on the right"
-        m_controlsBox.append(m_histogramFrame);
-        m_controlsBox.append(m_curveFrame);
-
+        // --- IMAGE CONTAINER ---
         m_imageContainer.set_orientation(Gtk::Orientation::VERTICAL);
         m_imageContainer.append(m_picture);
         m_imageContainer.append(m_infoLabel);
+        m_imageContainer.set_valign(Gtk::Align::FILL);
 
         m_scrolled.set_child(m_imageContainer);
         m_scrolled.set_expand(true);
+        m_scrolled.set_propagate_natural_height(true);
 
-        m_vbox.set_spacing(5);
+        // --- BOTTOM CONTROLS BOX ---
+        m_controlsBox.set_orientation(Gtk::Orientation::HORIZONTAL);
+        m_controlsBox.set_spacing(20);
+        m_controlsBox.set_margin_bottom(10);
+        m_controlsBox.set_margin_start(20);
+        m_controlsBox.set_margin_end(20);
+        m_controlsBox.set_margin_top(0);
+
+        m_controlsBox.set_vexpand(false);
+        m_controlsBox.set_valign(Gtk::Align::END);
+
+        // Histogram Frame
+        m_histogramFrame.set_label("RGB Histogram");
+        m_histogramFrame.set_hexpand(true);
+        m_histogramFrame.set_vexpand(false);
+        m_histogram.set_size_request(-1, 140);
+        m_histogramFrame.set_child(m_histogram);
+
+        // Tone Curve Frame
+        m_curveFrame.set_label("Tone Curve");
+        m_curveFrame.set_hexpand(false);
+        m_curveFrame.set_vexpand(false);
+        m_toneCurve.set_size_request(180, 180);
+        m_curveFrame.set_child(m_toneCurve);
+
+        m_controlsBox.append(m_histogramFrame);
+        m_controlsBox.append(m_curveFrame);
+
+        // --- MAIN VERTICAL BOX ---
+        m_vbox.set_spacing(0);
         m_vbox.append(*menubar);
         m_vbox.append(m_scrolled);
         m_vbox.append(m_controlsBox);
         set_child(m_vbox);
 
-        // --- DRAG AND DROP ---
-        auto drop_target = Gtk::DropTarget::create(Gio::File::get_type(), Gdk::DragAction::COPY);
-        drop_target->signal_drop().connect([this](const Glib::ValueBase& value, double, double) -> bool {
-            GValue const* g_value = value.gobj();
-            if(G_VALUE_HOLDS(g_value, G_TYPE_FILE)) {
-                if(gpointer g_file_ptr = g_value_get_object(g_value)) {
-                    if(auto file = Glib::wrap(static_cast<GFile*>(g_file_ptr), true)) {
-                        LoadImageFromPath(file->get_path());
-                        return true;
-                    }
-                }
-            }
-            return false;
-        }, false);
-
-        add_controller(drop_target);
+        SetupDragAndDrop();
 
         m_toneCurve.SignalCurveChanged().connect([this]() {
             const auto& lut = m_toneCurve.GetLUT();
-            FastLut(lut);
-            // Update RGB Histogram with high stride for smoothness
-            m_histogram.UpdateFromBuffer(m_image.GetPixelData(), 64);
-            UpdateDisplayOnly();
+            Utils::ApplyLut(m_document->GetImage().GetPixelData(), m_originalPixelsBackup, lut);
+
+            NotifyImageChanged(false);
+
+            if(m_document)
+                m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 16);
         });
 
         m_toneCurve.SignalDragFinished().connect([this]() {
-            // Precise histogram update when interaction ends
-            m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
+            if(m_document) {
+                m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 1);
+            }
         });
     }
+
+    Window::~Window() { m_picture.set_paintable(nullptr); }
 
     void Window::OnImport()
     {
         auto dialog = Gtk::FileDialog::create();
+        dialog->set_title("Open Image");
+
         dialog->open(*this, [this, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
             try
             {
-                if(auto file = dialog->open_finish(result))
-                    LoadImageFromPath(file->get_path());
+                auto file = dialog->open_finish(result);
+                if(!file)
+                    return;
+
+                std::filesystem::path path = file->get_path();
+
+                if(m_openDocumentCallback)
+                    m_openDocumentCallback(path);
             } catch(const Glib::Error& ex)
             {
-                std::cerr << "Error loading image: " << ex.what() << std::endl;
+                auto err = Gtk::AlertDialog::create("Load error");
+                err->set_detail(ex.what());
+                err->show(*this);
             }
         });
     }
 
-    void Window::LoadImageFromPath(const std::filesystem::path& path)
+    void Window::LoadDocument(Document* doc)
     {
-        try
-        {
-            m_image.LoadImage(path);
-            m_originalPixelsBackup = m_image.GetPixelData();
-            m_currentFilePath = path;
+        m_document = doc;
+        auto pixelSpan = m_document->GetImage().GetPixelData();
+        m_originalPixelsBackup.assign(pixelSpan.begin(), pixelSpan.end());
 
-            // Generate the fixed background histogram for the curve widget
-            m_histogram.SetImage(m_originalPixelsBackup, m_image.GetWidth(), m_image.GetHeight());
-            auto initialLum = m_histogram.GetLuminanceHistogram();
-            m_toneCurve.SetHistogram(initialLum);
+        NotifyImageChanged(true);
 
-            m_infoLabel.set_markup("<b>File:</b> " + path.filename().string());
-            UpdateFromImage(false);
-        } catch(const Glib::Error& ex) {
-            std::cerr << "Load error: " << ex.what() << std::endl;
-        }
+        auto initialLum = m_histogram.GetLuminanceHistogram();
+        m_toneCurve.SetHistogram(initialLum);
+
+        m_infoLabel.set_markup("<b>File:</b> " + m_document->GetFilePath().filename().string());
     }
 
     void Window::OnSave()
     {
-        // If there is no image to save, show an error dialog
-        if(!m_pixbuf && !m_originalPixbuf)
+        if(!m_document)
         {
-            auto dialog = Gtk::AlertDialog::create("No image to save");
-            dialog->set_detail("Load an image first.");
+            auto dialog = Gtk::AlertDialog::create("No document to save");
+            dialog->set_detail("Load or create a document first.");
             dialog->show(*this);
             return;
         }
 
-        Glib::RefPtr<Gdk::Pixbuf> pixbufToSave = m_pixbuf ? m_pixbuf : m_originalPixbuf;
-        if(!pixbufToSave)
-            return;
+        try
+        {
+            auto fileDialog = Gtk::FileDialog::create();
+            fileDialog->set_title("Save Document As");
 
-        std::filesystem::path original_path = m_currentFilePath;
-        std::string default_name = original_path.filename().string();
+            fileDialog->save(*this, [this, fileDialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
+                try
+                {
+                    auto file = fileDialog->save_finish(result);
+                    std::filesystem::path path = file->get_path();
 
-        auto dialog = Gtk::FileDialog::create();
-        dialog->set_title("Save Image");
+                    m_document->SaveAs(path);
 
-        // If there is a current file path, set it as the default name
-        if(!m_currentFilePath.empty())
-            dialog->set_initial_name(default_name);
-
-        dialog->save(*this, [this, pixbufToSave, dialog](const Glib::RefPtr<Gio::AsyncResult>& result) {
-            try
-            {
-                auto file = dialog->save_finish(result);
-                std::string filePath = file->get_path();
-
-                std::filesystem::path save_path(filePath);
-                std::string ext = save_path.extension().string();
-
-                if(ext.empty())
-                    filePath += ".png";
-
-                std::string format = save_path.extension().string();
-                if(!format.empty() && format[0] == '.')
-                    format = format.substr(1);
-                if(format == "jpg")
-                    format = "jpeg";
-                else if(format == "tif")
-                    format = "tiff";
-
-                pixbufToSave->save(filePath, format);
-
-                auto success_dialog = Gtk::AlertDialog::create("Image saved");
-                success_dialog->set_detail("The image has been saved successfully.");
-                success_dialog->show(*this);
-            } catch(const Glib::Error& ex)
-            {
-                auto error_dialog = Gtk::AlertDialog::create("Error saving image");
-                error_dialog->set_detail(ex.what());
-                error_dialog->show(*this);
-            }
-        });
+                    auto success_dialog = Gtk::AlertDialog::create("Document saved");
+                    success_dialog->set_detail("The document has been saved successfully.");
+                    success_dialog->show(*this);
+                } catch(const Glib::Error& ex)
+                {
+                    auto error_dialog = Gtk::AlertDialog::create("Error saving document");
+                    error_dialog->set_detail(ex.what());
+                    error_dialog->show(*this);
+                }
+            });
+        } catch(const std::exception& ex)
+        {
+            auto error_dialog = Gtk::AlertDialog::create("Error saving document");
+            error_dialog->set_detail(ex.what());
+            error_dialog->show(*this);
+        }
     }
 
     void Window::OnRotate()
     {
-        m_image.Rotate();
-        UpdateFromImage(false);
+        Processor::Rotate(m_document->GetImage());
+        NotifyImageChanged(false);
     }
 
-    void Window::OnFlip()
+    void Window::OnFlip()  // Horizontal
     {
-        m_image.FlipHorizontal();
-        UpdateFromImage(false);
+        Processor::FlipVertical(m_document->GetImage());
+        NotifyImageChanged(false);
     }
 
     void Window::OnAbout()
@@ -259,9 +261,16 @@ namespace Editor
 
     void Window::ApplyFilter(Filter::FilterType filterType)
     {
-        m_image.ApplyFilter(filterType);
-        UpdateFromImage(false);
+        //m_document->GetImage().ApplyFilter(filterType);
+        // Implement filtering and undo redo
+        NotifyImageChanged(false);
         m_picture.queue_draw();
+    }
+
+    void Window::OnGrayScale()
+    {
+        Processor::ToGrayScale(m_document->GetImage());
+        NotifyImageChanged(false);
     }
 
     void Window::SetupMenu()
@@ -277,63 +286,120 @@ namespace Editor
         m_vbox.append(*menubar);
     }
 
-    void Window::UpdateFromImage(bool updateHistogram)
+    void Window::NotifyImageChanged(bool updateHistogram)
     {
-        UpdateDisplayOnly();
+        if(!m_document)
+            return;
+
+        auto& image = m_document->GetImage();
+        std::span<Pixel> pixels = image.GetPixelData();
+
+        auto bytes = Glib::Bytes::create(pixels.data(), pixels.size() * sizeof(Pixel));
+        auto texture = Gdk::MemoryTexture::create(
+                image.GetWidth(), image.GetHeight(),
+                Gdk::MemoryTexture::Format::R8G8B8A8,
+                bytes, image.GetWidth() * 4
+                );
+        m_picture.set_paintable(texture);
 
         if(updateHistogram)
-            m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
+            m_histogram.SetImage(pixels, image.GetWidth(), image.GetHeight());
     }
 
-    void Window::UpdateDisplayOnly()
+    void Window::UpdateDisplayFromDocument()
     {
-        auto bytes = Glib::Bytes::create(
-            m_image.GetPixelData().data(),
-            m_image.GetPixelData().size() * sizeof(Pixel)
-        );
+        const auto& img = m_document->GetImage();
+        auto bytes = Glib::Bytes::create((img.GetPixelData().data()),
+                                         img.GetPixelData().size() * sizeof(Pixel)
+                );
 
         auto texture = Gdk::MemoryTexture::create(
-            m_image.GetWidth(),
-            m_image.GetHeight(),
-            Gdk::MemoryTexture::Format::R8G8B8A8,
-            bytes,
-            m_image.GetWidth() * 4
-        );
+                img.GetWidth(),
+                img.GetHeight(),
+                Gdk::MemoryTexture::Format::R8G8B8A8,
+                bytes,
+                img.GetWidth() * 4
+                );
 
         m_picture.set_paintable(texture);
     }
 
     void Window::OnCurveDragFinished()
     {
-        const int width = m_image.GetWidth();
-        const int height = m_image.GetHeight();
+        const int width = m_document->GetImage().GetWidth();
+        const int height = m_document->GetImage().GetHeight();
 
-        m_histogram.SetImage(m_image.GetPixelData(), width, height);
+        m_histogram.SetImage(m_document->GetImage().GetPixelData(), width, height);
         m_histogram.queue_draw();
     }
 
-    void Window::FastLut(const std::array<uint8_t, 256>& lut)
+    void Window::SetOpenDocumentCallback(std::function<void(const std::filesystem::path&)> cb)
     {
-        const auto* src = reinterpret_cast<const uint8_t*>(m_originalPixelsBackup.data());
-        auto* dst = reinterpret_cast<uint8_t*>(m_image.GetPixelData().data());
-        const uint8_t* lut_ptr = lut.data();
-        const size_t total_bytes = m_originalPixelsBackup.size() * 4;
+        m_openDocumentCallback = std::move(cb);
+    }
 
-        for(size_t i = 0; i < total_bytes; i += 4)
+    void Window::SetDocument(Document* document) { m_document = document; }
+
+    void Window::SetupDragAndDrop()
+    {
+        const GType uStringType = Glib::Value<Glib::ustring>::value_type();
+        auto drop_target = Gtk::DropTarget::create(G_TYPE_INVALID, Gdk::DragAction::COPY);
+
+        // Support multiple formats: file lists, single files, and strings
+        drop_target->set_gtypes({GDK_TYPE_FILE_LIST, G_TYPE_FILE, uStringType});
+
+        drop_target->signal_drop().connect(
+                sigc::mem_fun(*this, &Window::OnDrop), false
+                );
+
+        add_controller(drop_target);
+    }
+
+    bool Window::OnDrop(const Glib::ValueBase& value, double, double) const
+    {
+        if(!m_openDocumentCallback)
+            return false;
+
+        const GValue* g_value = value.gobj();
+        std::string path_found = "";
+
+        if(G_VALUE_HOLDS(g_value, GDK_TYPE_FILE_LIST))
         {
-            dst[i]     = lut_ptr[src[i]];
-            dst[i + 1] = lut_ptr[src[i + 1]];
-            dst[i + 2] = lut_ptr[src[i + 2]];
+            if(auto* file_list = static_cast<GdkFileList*>(g_value_get_boxed(g_value)))
+            {
+                GSList* files = gdk_file_list_get_files(file_list);
+                if(files && files->data)
+                    if(gchar* path = g_file_get_path(static_cast<GFile*>(files->data)))
+                    {
+                        path_found = path;
+                        g_free(path);
+                    }
+            }
         }
+        else
+            if(G_VALUE_HOLDS(g_value, G_TYPE_FILE))
+                if(auto* g_file_obj = static_cast<GFile*>(g_value_get_object(g_value)))
+                    if(gchar* path = g_file_get_path(g_file_obj))
+                    {
+                        path_found = path;
+                        g_free(path);
+                    }
+
+
+        return (!path_found.empty()) ? HandleFilePath(path_found) : false;
     }
 
-    void Window::ApplyLUTToTempPixels(const std::array<uint8_t, 256>& lut)
+    bool Window::HandleFilePath(const std::string& path_str) const
     {
-        FastLut(lut);
+        if(path_str.empty())
+            return false;
 
-        m_histogram.SetImage(m_image.GetPixelData(), m_image.GetWidth(), m_image.GetHeight());
-        m_histogram.queue_draw();
+        if(m_openDocumentCallback)
+        {
+            m_openDocumentCallback(std::filesystem::path{path_str});
+            return true;
+        }
+
+        return false;
     }
-
-
 }
