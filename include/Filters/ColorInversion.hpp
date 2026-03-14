@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Event.hpp
+ * File: ColorInvertion.hpp
  * Author: olegfresi
- * Created: 06/03/26 12:43
+ * Created: 14/03/26 17:43
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,13 +29,9 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../../include/Core/Image.hpp"
 
-
-namespace Editor
+namespace Editor::Filter
 {
-    template<typename Sender, typename Receiver, typename Func>
-    void ManageEvent(Sender&& sender, Receiver&& receiver, Func&& function)
-    {
-
-    }
+    void InvertColor(Image& image);
 }

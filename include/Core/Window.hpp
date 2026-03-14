@@ -39,7 +39,6 @@
 #include <gtkmm/label.h>
 #include <gtkmm/frame.h>
 #include "Document.hpp"
-#include "../Filters/Filter.hpp"
 #include "../Widget/Histogram.hpp"
 #include "../Widget/ToneCurve.hpp"
 
@@ -70,15 +69,8 @@ namespace Editor
 
         ~Window() override;
 
-        /**
-        * Apply a filter effect to the current image.
-        *
-        * Applies the specified filter type to modify the image appearance.
-        * Updates the display and histogram after filter application.
-        *
-        * @param filterType The type of filter to apply (blur, edge detection, etc.)
-        */
-        void ApplyFilter(Filter::FilterType filterType);
+
+        void ExecuteFilter(const std::function<void(Image&)>& filterTask);
 
         /**
         * Set the document associated with this window.
@@ -155,14 +147,6 @@ namespace Editor
         */
         void OnAbout();
 
-        /**
-        * Grayscale filter handler.
-        *
-        * Converts the current image to grayscale by applying a luminance-based
-        * transformation. Updates the display and histogram after conversion.
-        */
-        void OnGrayScale();
-
     private:
 
         /**
@@ -193,13 +177,11 @@ namespace Editor
         /**
         * Notify that the image has changed and update the display.
         *
-        * Called when the image data has been modified to refresh the visual display
-        * and optionally update the histogram visualization. Ensures the UI stays
-        * synchronized with the current image state.
+        * Called when the image data has been modified to refresh the visual display.
+        * Ensures the UI stays synchronized with the current image state.
         *
-        * @param updateHistogram Whether to recalculate the histogram (can be slow)
         */
-        void NotifyImageChanged(bool updateHistogram);
+        void NotifyImageChanged();
 
         /**
         * Initialize drag and drop functionality for the window.
@@ -232,6 +214,13 @@ namespace Editor
         * @return True if the file was processed successfully, false otherwise
         */
         bool HandleFilePath(const std::string& path_str) const;
+
+        /**
+        * Register all filter-related actions on the shared action group.
+        *
+        * Adds menu actions wiring them to the matching processor function.
+        */
+        void AddActionsToGroupAction();
 
         /**
         * Add an action to the action group with optional parameters.
@@ -285,4 +274,3 @@ namespace Editor
         Editor::Widget::HistogramWidget m_histogram;
     };
 }
-

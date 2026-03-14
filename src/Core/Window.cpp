@@ -1,7 +1,10 @@
 #include <giomm/menu.h>
 #include <gtkmm/popovermenubar.h>
 #include <gtkmm/filedialog.h>
+#include <gtkmm/dialog.h>
+#include <gtkmm/spinbutton.h>
 #include <gtkmm/alertdialog.h>
+#include <gtkmm/adjustment.h>
 #include <gtkmm/cssprovider.h>
 #include <gtkmm/droptarget.h>
 #include <gdkmm/memorytexture.h>
@@ -9,10 +12,10 @@
 #include <gdk/gdk.h>
 #include <gio/gio.h>
 #include <glib.h>
+#include <ranges>
 #include "../../include/Core/Window.hpp"
 #include "../../include/Core/FileManager.hpp"
 #include "../../include/Core/Utils.hpp"
-#include "../../include/Tools/Profiler.hpp"
 #include "../../include/Core/Processing.hpp"
 
 
@@ -33,25 +36,8 @@ namespace Editor
         AddAction("rotate", &Window::OnRotate);
         AddAction("flip", &Window::OnFlip);
         AddAction("about", &Window::OnAbout);
-        AddAction("grayscale", &Window::OnGrayScale);
 
-        m_actionGroup->add_action("blur", [this] {
-            ApplyFilter(Filter::FilterType::Blur);
-            NotifyImageChanged(true);
-        });
-        m_actionGroup->add_action("sharpen", [this] {
-            ApplyFilter(Filter::FilterType::Sharpen);
-            NotifyImageChanged(true);
-        });
-        m_actionGroup->add_action("emboss", [this] {
-            ApplyFilter(Filter::FilterType::Emboss);
-            NotifyImageChanged(true);
-        });
-        m_actionGroup->add_action("edge_detect", [this] {
-            ApplyFilter(Filter::FilterType::EdgeDetect);
-            NotifyImageChanged(true);
-        });
-
+        AddActionsToGroupAction();
         insert_action_group("win", m_actionGroup);
 
         // --- MENU BAR SETUP ---
@@ -71,6 +57,7 @@ namespace Editor
         submenuFilter->append("Blur", "win.blur");
         submenuFilter->append("Sharpen", "win.sharpen");
         submenuFilter->append("Emboss", "win.emboss");
+        submenuFilter->append("Invert colors", "win.invert");
         submenuFilter->append("Edge Detect", "win.edge_detect");
         menu->append_submenu("Filter", submenuFilter);
 
@@ -145,14 +132,15 @@ namespace Editor
             const auto& lut = m_toneCurve.GetLUT();
             Utils::ApplyLut(m_document->GetImage().GetPixelData(), m_originalPixelsBackup, lut);
 
-            NotifyImageChanged(false);
+            NotifyImageChanged();
 
             if(m_document)
                 m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 16);
         });
 
         m_toneCurve.SignalDragFinished().connect([this]() {
-            if(m_document) {
+            if(m_document)
+            {
                 m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 1);
             }
         });
@@ -176,7 +164,8 @@ namespace Editor
 
                 if(m_openDocumentCallback)
                     m_openDocumentCallback(path);
-            } catch(const Glib::Error& ex)
+            }
+            catch(const Glib::Error& ex)
             {
                 auto err = Gtk::AlertDialog::create("Load error");
                 err->set_detail(ex.what());
@@ -191,7 +180,7 @@ namespace Editor
         auto pixelSpan = m_document->GetImage().GetPixelData();
         m_originalPixelsBackup.assign(pixelSpan.begin(), pixelSpan.end());
 
-        NotifyImageChanged(true);
+        NotifyImageChanged();
 
         auto initialLum = m_histogram.GetLuminanceHistogram();
         m_toneCurve.SetHistogram(initialLum);
@@ -225,14 +214,16 @@ namespace Editor
                     auto success_dialog = Gtk::AlertDialog::create("Document saved");
                     success_dialog->set_detail("The document has been saved successfully.");
                     success_dialog->show(*this);
-                } catch(const Glib::Error& ex)
+                }
+                catch(const Glib::Error& ex)
                 {
                     auto error_dialog = Gtk::AlertDialog::create("Error saving document");
                     error_dialog->set_detail(ex.what());
                     error_dialog->show(*this);
                 }
             });
-        } catch(const std::exception& ex)
+        }
+        catch(const std::exception& ex)
         {
             auto error_dialog = Gtk::AlertDialog::create("Error saving document");
             error_dialog->set_detail(ex.what());
@@ -243,13 +234,13 @@ namespace Editor
     void Window::OnRotate()
     {
         Processor::Rotate(m_document->GetImage());
-        NotifyImageChanged(false);
+        NotifyImageChanged();
     }
 
-    void Window::OnFlip()  // Horizontal
+    void Window::OnFlip() // Horizontal
     {
         Processor::FlipVertical(m_document->GetImage());
-        NotifyImageChanged(false);
+        NotifyImageChanged();
     }
 
     void Window::OnAbout()
@@ -259,18 +250,16 @@ namespace Editor
         about_dialog->show(*this);
     }
 
-    void Window::ApplyFilter(Filter::FilterType filterType)
+    void Window::ExecuteFilter(const std::function<void(Image&)>& filterTask)
     {
-        //m_document->GetImage().ApplyFilter(filterType);
-        // Implement filtering and undo redo
-        NotifyImageChanged(false);
-        m_picture.queue_draw();
-    }
+        if(!m_document)
+            return;
 
-    void Window::OnGrayScale()
-    {
-        Processor::ToGrayScale(m_document->GetImage());
-        NotifyImageChanged(false);
+        filterTask(m_document->GetImage());
+
+        auto pixelSpan = m_document->GetImage().GetPixelData();
+        m_originalPixelsBackup.assign(pixelSpan.begin(), pixelSpan.end());
+        NotifyImageChanged();
     }
 
     void Window::SetupMenu()
@@ -286,7 +275,7 @@ namespace Editor
         m_vbox.append(*menubar);
     }
 
-    void Window::NotifyImageChanged(bool updateHistogram)
+    void Window::NotifyImageChanged()
     {
         if(!m_document)
             return;
@@ -302,8 +291,7 @@ namespace Editor
                 );
         m_picture.set_paintable(texture);
 
-        if(updateHistogram)
-            m_histogram.SetImage(pixels, image.GetWidth(), image.GetHeight());
+        m_histogram.SetImage(pixels, image.GetWidth(), image.GetHeight());
     }
 
     void Window::UpdateDisplayFromDocument()
@@ -361,7 +349,7 @@ namespace Editor
             return false;
 
         const GValue* g_value = value.gobj();
-        std::string path_found = "";
+        std::string path_found;
 
         if(G_VALUE_HOLDS(g_value, GDK_TYPE_FILE_LIST))
         {
@@ -375,15 +363,13 @@ namespace Editor
                         g_free(path);
                     }
             }
-        }
-        else
-            if(G_VALUE_HOLDS(g_value, G_TYPE_FILE))
-                if(auto* g_file_obj = static_cast<GFile*>(g_value_get_object(g_value)))
-                    if(gchar* path = g_file_get_path(g_file_obj))
-                    {
-                        path_found = path;
-                        g_free(path);
-                    }
+        } else if(G_VALUE_HOLDS(g_value, G_TYPE_FILE))
+            if(auto* g_file_obj = static_cast<GFile*>(g_value_get_object(g_value)))
+                if(gchar* path = g_file_get_path(g_file_obj))
+                {
+                    path_found = path;
+                    g_free(path);
+                }
 
 
         return (!path_found.empty()) ? HandleFilePath(path_found) : false;
@@ -401,5 +387,61 @@ namespace Editor
         }
 
         return false;
+    }
+
+    void Window::AddActionsToGroupAction()
+    {
+        m_actionGroup->add_action("grayscale", [this] {
+           ExecuteFilter([](Image& img) {
+               Processor::ToGrayScale(img);
+           });
+       });
+
+        m_actionGroup->add_action("blur", [this] {
+            auto dialog = Gtk::make_managed<Gtk::Dialog>("Set Blur Radius", *this, true);
+            dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
+            dialog->add_button("_Apply", Gtk::ResponseType::OK);
+
+            auto adjustment = Gtk::Adjustment::create(5.0, 0.1, 50.0, 0.1, 1.0);
+            auto spin = Gtk::make_managed<Gtk::SpinButton>(adjustment);
+            dialog->get_content_area()->append(*spin);
+
+            dialog->signal_response().connect([dialog, spin, this](int response_id) {
+                if(response_id == static_cast<int>(Gtk::ResponseType::OK))
+                {
+                    auto radius = static_cast<float>(spin->get_value());
+                    ExecuteFilter([radius](Image& img) {
+                        Processor::Blur(img, radius);
+                    });
+                }
+                dialog->set_visible(false);
+            });
+            dialog->show();
+        });
+
+        m_actionGroup->add_action("sharpen", [this] {
+            ExecuteFilter([this](Image& img) {
+                Processor::Sharpen(img, m_originalPixelsBackup);
+            });
+        });
+
+        m_actionGroup->add_action("emboss", [this] {
+            ExecuteFilter([this](Image& img) {
+                Processor::Emboss(img, m_originalPixelsBackup);
+            });
+        });
+
+        m_actionGroup->add_action("invert", [this] {
+            ExecuteFilter([](Image& img) {
+                Processor::Invert(img);
+            });
+        });
+
+        m_actionGroup->add_action("edge_detect", [this] {
+            ExecuteFilter([this](Image& img) {
+                Processor::EdgeDetect(img, m_originalPixelsBackup);
+            });
+
+        });
     }
 }

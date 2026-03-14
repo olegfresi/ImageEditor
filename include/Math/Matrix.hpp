@@ -195,6 +195,16 @@ namespace Editor::Math
             return m_data.data() + y * m_width;
         }
 
+        /**
+        * Obtain iterator to the first element in contiguous storage.
+        */
+        auto begin() { return m_data.begin(); }
+
+        /**
+        * Obtain iterator past the last element in contiguous storage.
+        */
+        auto end() { return m_data.end(); }
+
     private:
         size_t m_width = 0;
         size_t m_height = 0;

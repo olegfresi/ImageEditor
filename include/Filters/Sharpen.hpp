@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Filter.hpp
+ * File: Sharpen.hpp
  * Author: olegfresi
- * Created: 20/02/26 17:03
+ * Created: 14/03/26 17:37
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,27 +29,19 @@
  * SOFTWARE.
  */
 #pragma once
-
-namespace Editor
-{
-    class Image;
-}
+#include "../../include/Core/Image.hpp"
 
 namespace Editor::Filter
 {
-    enum class FilterType
-    {
-        GrayScale,
-        Blur,
-        Sharpen,
-        Emboss,
-        EdgeDetect,
-        Invert
-    };
-
-    template<typename Filter, typename... Args>
-    void ApplyFilter(Image& img, Filter filter, Args... args)
-    {
-
-    }
+    /**
+     * Sharpen filter implementation.
+     *
+     * Enhances perceived sharpness by accentuating micro-contrasts.
+     * Strengthens the central pixel relative to its immediate neighbors,
+     * making details and boundaries appear more defined.
+     *
+     * @param image The destination Image object where the result is written.
+     * @param backup A read-only span of the original pixels used as the data source.
+     */
+    void Sharpen(Image& image, std::span<const Pixel> backup);
 }

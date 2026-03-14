@@ -1,21 +1,24 @@
 #include "../../include/Core/Utils.hpp"
 #include <algorithm>
+#include <thread>
+
 
 namespace Editor::Utils
 {
     FloatImageRGB ImageToFloatRGB(const Image& img)
     {
-        int width = img.GetWidth();
-        int height = img.GetHeight();
+        const int width = img.GetWidth();
+        const int height = img.GetHeight();
 
         FloatImageRGB result(width, height);
-
         constexpr float inv255 = 1.0f / 255.0f;
+
+        auto pixels = img.GetPixelData();
 
         for(int y = 0; y < height; ++y)
             for(int x = 0; x < width; ++x)
             {
-                const Pixel& p = img.GetPixel(x, y);
+                const auto& p = pixels[y * width + x];
 
                 result.r(x, y) = static_cast<float>(p.GetR()) * inv255;
                 result.g(x, y) = static_cast<float>(p.GetG()) * inv255;
@@ -25,28 +28,45 @@ namespace Editor::Utils
         return result;
     }
 
-    Image FloatToImageRGB(const FloatImageRGB& fimg)
+    void UpdateImageFromFloat(Image& dest, const FloatImageRGB& fimg)
     {
-        int width = static_cast<int>(fimg.r.GetWidth());
-        int height = static_cast<int>(fimg.r.GetHeight());
+        const int width = dest.GetWidth();
+        const int height = dest.GetHeight();
+        auto pixels = dest.GetPixelData();
 
-        Image result(width, height, 4);
+        auto parallelLambda = [&](auto workFunc) {
+            unsigned int numThreads = std::thread::hardware_concurrency();
+            if(numThreads == 0)
+                numThreads = 4;
 
-        auto clamp01 = [](float v) {
-            return std::clamp(v, 0.0f, 1.0f);
+            std::vector<std::thread> threads;
+            threads.reserve(static_cast<int>(numThreads));
+            for(int t = 0; t < static_cast<int>(numThreads); ++t)
+            {
+                threads.emplace_back([t, numThreads, height, workFunc]() {
+                    int rowsPerThread = height / static_cast<int>(numThreads);
+                    int start = t * rowsPerThread;
+                    int end = (t == static_cast<int>(numThreads) - 1) ? height : start + rowsPerThread;
+                    for(int y = start; y < end; ++y)
+                        workFunc(y);
+                });
+            }
+            for(auto& thread : threads)
+                thread.join();
         };
 
-        for(int y = 0; y < height; ++y)
+        parallelLambda([&](int y) {
             for(int x = 0; x < width; ++x)
             {
-                auto r = static_cast<uint8_t>(clamp01(fimg.r(x, y)) * 255.0f);
-                auto g = static_cast<uint8_t>(clamp01(fimg.g(x, y)) * 255.0f);
-                auto b = static_cast<uint8_t>(clamp01(fimg.b(x, y)) * 255.0f);
-
-                result.SetPixel(x, y, r, g, b, 255);
+                int idx = y * width + x;
+                pixels[idx].SetPixel(
+                        static_cast<uint8_t>(std::clamp(fimg.r(x, y), 0.0f, 1.0f) * 255.0f),
+                        static_cast<uint8_t>(std::clamp(fimg.g(x, y), 0.0f, 1.0f) * 255.0f),
+                        static_cast<uint8_t>(std::clamp(fimg.b(x, y), 0.0f, 1.0f) * 255.0f),
+                        255
+                        );
             }
-
-        return result;
+        });
     }
 
     Glib::RefPtr<Gdk::Pixbuf> PixbufFromImage(const Image& img)
@@ -55,14 +75,14 @@ namespace Editor::Utils
         const int height = img.GetHeight();
 
         auto temp_pixbuf = Gdk::Pixbuf::create_from_data(
-            reinterpret_cast<const guint8*>(img.GetPixelData().data()),
-            Gdk::Colorspace::RGB,
-            true,
-            8,
-            width,
-            height,
-            width * 4
-        );
+                reinterpret_cast<const guint8*>(img.GetPixelData().data()),
+                Gdk::Colorspace::RGB,
+                true,
+                8,
+                width,
+                height,
+                width * 4
+                );
 
         return temp_pixbuf->copy();
     }
@@ -71,18 +91,18 @@ namespace Editor::Utils
                   std::span<const Pixel> sourceBackup,
                   const std::array<uint8_t, 256>& lut)
     {
-        if (targetPixels.size() != sourceBackup.size())
+        if(targetPixels.size() != sourceBackup.size())
             return;
 
-        uint8_t* dst = reinterpret_cast<uint8_t*>(targetPixels.data());
-        const uint8_t* src = reinterpret_cast<const uint8_t*>(sourceBackup.data());
+        auto* dst = reinterpret_cast<uint8_t*>(targetPixels.data());
+        const auto* src = reinterpret_cast<const uint8_t*>(sourceBackup.data());
         const uint8_t* lut_ptr = lut.data();
 
         const size_t total_bytes = targetPixels.size() * 4;
 
-        for (size_t i = 0; i < total_bytes; i += 4)
+        for(size_t i = 0; i < total_bytes; i += 4)
         {
-            dst[i]     = lut_ptr[src[i]];     // R
+            dst[i] = lut_ptr[src[i]]; // R
             dst[i + 1] = lut_ptr[src[i + 1]]; // G
             dst[i + 2] = lut_ptr[src[i + 2]]; // B
             // Alpha (i+3) is skipped to preserve transparency

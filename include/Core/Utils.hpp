@@ -32,6 +32,8 @@
 #include <gdkmm/pixbuf.h>
 #include <glibmm/refptr.h>
 #include <span>
+#include <thread>
+#include <vector>
 #include "Image.hpp"
 #include "../Math/Matrix.hpp"
 
@@ -75,16 +77,17 @@ namespace Editor::Utils
     FloatImageRGB ImageToFloatRGB(const Image& img);
 
     /**
-    * Convert floating-point RGB representation to 8-bit integer image.
+    * Update image pixels from a floating-point RGB representation.
     *
-    * Combines three separate floating-point channel matrices back into a single Image.
-    * Converts pixel values from normalized float range [0.0, 1.0] to integer range [0, 255].
-    * Values are clamped and rounded appropriately. Alpha channel is set to fully opaque (255).
+    * Maps three separate floating-point channel matrices back into the provided Image object.
+    * Converts pixel values from a normalized float range [0.0, 1.0] to an 8-bit integer
+    * range [0, 255]. Values outside the normalized range are clamped.
+    * The alpha channel is set to fully opaque (255).
     *
-    * @param fimg Input FloatImageRGB structure with normalized channels
-    * @return Image with 8-bit RGBA pixels
+    * @param dest The destination Image object to be updated
+    * @param fimg Input FloatImageRGB structure containing normalized channel data
     */
-    Image FloatToImageRGB(const FloatImageRGB& fimg);
+    void UpdateImageFromFloat(Image& dest, const FloatImageRGB& fimg);
 
     /**
     * Convert Image object to GTK Pixbuf.
@@ -112,4 +115,43 @@ namespace Editor::Utils
     void ApplyLut(std::span<Pixel> targetPixels,
                   std::span<const Pixel> sourceBackup,
                   const std::array<uint8_t, 256>& lut);
+
+    /**
+    * Parallelizes work across multiple hardware threads.
+    *
+    * Divides the total range of iterations into chunks
+    * and processes them in parallel using multiple threads.
+    *
+    * @param totalRange Number of iterations to perform; the callable is invoked
+    *                   with every integer `i` in `[0, totalRange)`.
+    * @param work Callable that processes a single index.
+    */
+    template<typename Func>
+    void Parallelize(int totalRange, Func work)
+    {
+        unsigned int numThreads = std::thread::hardware_concurrency();
+        if(numThreads == 0)
+            numThreads = 4; // Fallback to 4 threads if hardware detection fails
+
+        std::vector<std::thread> threads;
+        threads.reserve(numThreads);
+
+        int chunkSize = totalRange / static_cast<int>(numThreads);
+
+        for(unsigned int t = 0; t < numThreads; ++t)
+        {
+            int start = static_cast<int>(t) * chunkSize;
+            // Ensure the last thread covers the remaining range
+            int end = (t == numThreads - 1) ? totalRange : start + chunkSize;
+
+            threads.emplace_back([start, end, work]() {
+                for(int i = start; i < end; ++i)
+                    work(i);
+            });
+        }
+
+        // Join all threads to the main execution flow
+        for(auto& th : threads)
+            th.join();
+    }
 }

@@ -34,12 +34,41 @@
 
 namespace Editor::Math
 {
+    /**
+    * Abstract interface for separable convolution kernels.
+    *
+    * Implementations supply horizontal and vertical 1D kernels along with a
+    * human-readable description. The kernel vectors are intended for use with
+    * ConvolveSeparable, where GetKernelX() is applied horizontally and
+    * GetKernelY() vertically. Derived classes describe the filter via
+    * GetDescription() so callers can log or show the active kernel.
+    */
     class IKernel
     {
     public:
         virtual ~IKernel() = default;
+
+        /**
+        * Horizontal kernel coefficients in row order.
+        *
+        * @return vector of weights to be applied along the X axis.
+        */
         virtual std::vector<float> GetKernelX() const = 0;
+
+        /**
+        * Vertical kernel coefficients in column order.
+        *
+        * @return vector of weights to be applied along the Y axis.
+        */
         virtual std::vector<float> GetKernelY() const = 0;
+
+        /**
+        * Short description of the kernel (e.g., "Gaussian σ=1.0").
+        *
+        * Useful for UI labels or logging what filter is currently applied.
+        *
+        * @return string describing the kernel semantics.
+        */
         virtual std::string GetDescription() const = 0;
     };
 

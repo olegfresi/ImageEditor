@@ -33,8 +33,8 @@
 #include <stack>
 #include <vector>
 #include "Layer.hpp"
-#include "../../Command/Command.hpp"
-#include "Brush.hpp"
+#include "../../include/Command/Command.hpp"
+#include "../Tools/Brush.hpp"
 
 /**
 * Color space format for document representation.

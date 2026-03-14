@@ -29,3 +29,10 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../../include/Core/Image.hpp"
+
+
+namespace Editor::Filter
+{
+    void EdgeDetection(Image& image, std::span<const Pixel> backup);
+}

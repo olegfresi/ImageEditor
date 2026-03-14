@@ -8,7 +8,7 @@ find_package(PkgConfig REQUIRED)
 pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 
 add_executable(ImageEditor
-        include/Tools/Profiler.hpp
+        include/Core/Profiler.hpp
 
         src/Core/Application.cpp
         src/Core/Image.cpp
@@ -19,8 +19,11 @@ add_executable(ImageEditor
         src/Core/Pixel.cpp
         src/Core/Processing.cpp
 
-        src/Filter/Filter.cpp
         src/Filter/Blur.cpp
+        src/Filter/Sharpen.cpp
+        src/Filter/EdgeDetection.cpp
+        src/Filter/Emboss.cpp
+        src/Filter/ColorInversion.cpp
 
         src/Math/Convolution.cpp
         src/Math/Gaussian.cpp

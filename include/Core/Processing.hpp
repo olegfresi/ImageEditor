@@ -31,6 +31,7 @@
 #pragma once
 #include "../../include/Core/Image.hpp"
 
+
 namespace Editor
 {
     class Processor
@@ -51,27 +52,102 @@ namespace Editor
         static void ToGrayScale(Image& image);
 
         /**
-        * Rotate image 90 degrees clockwise.
+        * Rotates the image 90 degrees clockwise.
         *
-        * Modifies the image in-place.
-        * Swaps width and height, rearranges pixel data.
+        * Performs a structural transformation by swapping the image width and height.
+        * This operation reallocates/reorganizes the internal pixel buffer to match
+        * the new dimensions.
+        *
+        * @param image The Image object to rotate.
         */
         static void Rotate(Image& image);
 
         /**
-        * Flip image horizontally (mirror across vertical axis).
+        * Flips the image horizontally (Mirror effect).
         *
-        * Modifies the image in-place.
-        * Left-right pixels are reversed.
+        * Reverses the order of pixels along the X-axis. This is useful for correcting
+        * mirror-image captures or creating compositional symmetry.
+        *
+        * @param image The Image object to flip.
         */
         static void FlipHorizontal(Image& image);
 
         /**
-        * Flip image vertically (mirror across horizontal axis).
+        * Flips the image vertically.
         *
-        * Modifies the image in-place.
-        * Top-bottom pixels are reversed.
+        * Reverses the order of pixels along the Y-axis (top to bottom).
+        *
+        * @param image The Image object to flip.
         */
         static void FlipVertical(Image& image);
+
+        /**
+        * Applies a Gaussian blur to reduce image noise and detail.
+        *
+        * Utilizes a separable convolution kernel for performance optimization.
+        * Processing is performed in floating-point space to ensure high color
+        * precision and prevent rounding artifacts during the blurring pass.
+        *
+        * @param image The Image object to blur.
+        * @param sigma The radius used to blur
+        */
+        static void Blur(Image& image, float sigma);
+
+        /**
+        * Inverts the image colors (Negative effect).
+        *
+        * Calculates the complement of each RGB channel (255 - value).
+        * This method uses ApplyTransformation internally for efficient
+        * point-processing iteration.
+        *
+        * @param image The Image object to invert.
+        */
+        static void Invert(Image& image);
+
+        /**
+        * Highlights edges and sudden contrast variations.
+        *
+        * Applies a Laplacian kernel that zeroes out uniform areas and illuminates
+        * pixels where a strong color gradient is detected.
+        *
+        * @param image The destination Image object where the result is written.
+        * @param backup A read-only span of the original pixels used as the data source.
+        */
+        static void EdgeDetect(Image& image, std::span<const Pixel> backup);
+
+        /**
+        * Enhances perceived sharpness by accentuating micro-contrasts.
+        *
+        * Strengthens the central pixel relative to its immediate neighbors,
+        * making details and boundaries appear more defined.
+        *
+        * @param image The destination Image object where the result is written.
+        * @param backup A read-only span of the original pixels used as the data source.
+        */
+        static void Sharpen(Image& image, std::span<const Pixel> backup);
+
+        /**
+        * Creates a 3D relief effect based on light direction.
+        *
+        * Calculates the intensity difference between opposing diagonal pixels and
+        * adds a neutral gray offset. This filter is highly effective when followed
+        * by a Tone Curve adjustment.
+        *
+        * @param image The destination Image object where the result is written.
+        * @param backup A read-only span of the original pixels used as the data source.
+        */
+        static void Emboss(Image& image, std::span<const Pixel> backup);
+
+        /**
+        * Restore the image to its original state using a backup buffer.
+        *
+        * This method performs a deep copy of the pixel data from the provided
+        * backup span into the current image buffer. It is used to revert all
+        * modifications and restore the image to its initial state.
+        *
+        * @param image The Image object to be reset (destination)
+        * @param backup A read-only span containing the original pixel data (source)
+        */
+        static void Reset(Image& image, std::span<const Pixel> backup);
     };
 }

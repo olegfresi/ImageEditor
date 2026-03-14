@@ -22,6 +22,22 @@ The goal of this project is to provide a lightweight, extensible, and maintainab
 
 ---
 
+## ⚡ Concurrency utilities
+
+`Editor::Utils::Parallelize(totalRange, work)` is the project-level helper for running index-based jobs in parallel.
+It detects the number of hardware threads (falling back to four when the platform query returns zero) and splits `[0, totalRange)` into contiguous chunks.
+Each chunk is handled by a dedicated thread that calls `work(i)` for the indices it owns, and the caller waits for every thread to join before continuing.
+
+Example (see `src/Filter/Blur.cpp`):
+
+```cpp
+Editor::Utils::Parallelize(h, [&](int y) {
+    // each row `y` is processed in parallel
+});
+```
+
+Keep the lambda thread-safe: avoid shared mutable state or guard it with synchronization, and prefer per-index buffers. The last thread covers any extra iterations when the range is not evenly divisible by the thread count, so every index runs exactly once.
+
 ## 🖥️ Requirements
 
 The project requires:

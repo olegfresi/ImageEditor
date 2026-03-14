@@ -31,8 +31,8 @@
 #pragma once
 #include <vector>
 #include <string>
-#include "Image.hpp"
-#include "Color.hpp"
+#include "../Core/Image.hpp"
+#include "../Core/Color.hpp"
 
 namespace Editor
 {

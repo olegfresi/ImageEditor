@@ -3,7 +3,7 @@
 #include <vector>
 #include <thread>
 #include "../../include/Math/Convolution.hpp"
-#include "../../include/Tools/Profiler.hpp"
+#include "../../include/Core/Profiler.hpp"
 
 namespace Editor::Math
 {
