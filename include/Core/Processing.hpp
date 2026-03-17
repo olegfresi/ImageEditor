@@ -59,8 +59,9 @@ namespace Editor
         * the new dimensions.
         *
         * @param image The Image object to rotate.
+        * @param angle The angle of rotation.
         */
-        static void Rotate(Image& image);
+        static void Rotate(Image& image, float angle);
 
         /**
         * Flips the image horizontally (Mirror effect).
@@ -138,6 +139,17 @@ namespace Editor
         */
         static void Emboss(Image& image, std::span<const Pixel> backup);
 
+
+        /**
+        * Apply a sepia tone effect to the image.
+        *
+        * Transforms the pixel colors to warm sepia tones by reweighting the red,
+        * green, and blue channels to mimic the classic photographic look.
+        *
+        * @param image Image that will receive the sepia conversion.
+        */
+        static void Sepia(Image& image);
+
         /**
         * Restore the image to its original state using a backup buffer.
         *
@@ -145,8 +157,8 @@ namespace Editor
         * backup span into the current image buffer. It is used to revert all
         * modifications and restore the image to its initial state.
         *
-        * @param image The Image object to be reset (destination)
-        * @param backup A read-only span containing the original pixel data (source)
+        * @param image The Image object to be reset
+        * @param backup A read-only span containing the original pixel data
         */
         static void Reset(Image& image, std::span<const Pixel> backup);
     };

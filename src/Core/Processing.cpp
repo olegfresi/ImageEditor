@@ -4,6 +4,7 @@
 #include "../../include/Filters/Sharpen.hpp"
 #include "../../include/Filters/Emboss.hpp"
 #include "../../include/Filters/ColorInversion.hpp"
+#include "../../include/Filters/Sepia.hpp"
 
 
 namespace Editor
@@ -24,7 +25,9 @@ namespace Editor
     void Processor::FlipHorizontal(Image& image)
     {
         int w = image.GetWidth();
-        auto original = image.GetPixelData();
+
+        auto pixels = image.GetPixelData();
+        std::vector original(pixels.begin(), pixels.end());
 
         image.ApplyIndexedTransformation([&](Pixel& px, int x, int y) {
             px = original[y * w + (w - 1 - x)];
@@ -36,18 +39,21 @@ namespace Editor
         int w = image.GetWidth();
         int h = image.GetHeight();
 
-        auto original = image.GetPixelData();
+        auto pixels = image.GetPixelData();
+        std::vector original(pixels.begin(), pixels.end());
 
         image.ApplyIndexedTransformation([&](Pixel& px, int x, int y) {
             px = original[(h - 1 - y) * w + x];
         });
     }
 
-    void Processor::Rotate(Image& image)
+    void Processor::Rotate(Image& image, float angle)
     {
         int oldW = image.GetWidth();
         int oldH = image.GetHeight();
+
         auto source = image.GetPixelData();
+        std::vector sourceCopy(source.begin(), source.end());
 
         image.SetWidth(oldH);
         image.SetHeight(oldW);
@@ -55,7 +61,8 @@ namespace Editor
         image.ApplyIndexedTransformation([&](Pixel& px, int x, int y) {
             int oldX = y;
             int oldY = oldH - 1 - x;
-            px = source[oldY * oldW + oldX];
+
+            px = sourceCopy[oldY * oldW + oldX];
         });
     }
 
@@ -82,6 +89,11 @@ namespace Editor
     void Processor::Emboss(Image& image, std::span<const Pixel> backup)
     {
         Filter::Emboss(image, backup);
+    }
+
+    void Processor::Sepia(Image& image)
+    {
+        Filter::Sepia(image);
     }
 
     void Processor::Reset(Image& image, std::span<const Pixel> backup)

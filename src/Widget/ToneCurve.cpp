@@ -33,11 +33,6 @@ namespace Editor::Widget
         return m_signalCurveChanged;
     }
 
-    const std::array<uint8_t, 256>& ToneCurveWidget::GetLUT() const
-    {
-        return m_lutCache;
-    }
-
     int ToneCurveWidget::FindPoint(double x, double y) const
     {
         constexpr double radius = 0.04; // Click tolerance in normalized coordinates
@@ -261,5 +256,29 @@ namespace Editor::Widget
             cr->stroke();
         }
         cr->restore();
+    }
+
+    void ToneCurveWidget::SetLut(const std::array<uint8_t, 256>& lut)
+    {
+        m_lutCache = lut;
+        for(int i = 0; i < 256; ++i)
+            m_curveCache[i] = static_cast<double>(lut[i]) / 255.0;
+        queue_draw();
+    }
+
+    ToneCurveState ToneCurveWidget::GetState() const
+    {
+        return { m_lutCache, m_points };
+    }
+
+    void ToneCurveWidget::SetState(const ToneCurveState& state)
+    {
+        m_lutCache = state.lut;
+        m_points = state.points;
+
+        for(int i = 0; i < 256; ++i)
+            m_curveCache[i] = static_cast<double>(m_lutCache[i]) / 255.0;
+
+        queue_draw();
     }
 }

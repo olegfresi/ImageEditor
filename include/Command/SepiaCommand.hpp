@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: SepiaCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 21:01
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -33,13 +33,30 @@
 
 namespace Editor::Command
 {
-    class ICommand
+    class SepiaCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        SepiaCommand(Document* doc) : m_document{doc} {}
+        ~SepiaCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            auto& img = m_document->GetImage();
+            auto pixels = img.GetPixelData();
+
+            m_backup.assign(pixels.begin(), pixels.end());
+
+            Processor::Sepia(img);
+        }
+
+        void Undo() override
+        {
+            auto pixels = m_document->GetImage().GetPixelData();
+            std::ranges::copy(m_backup.begin(), m_backup.end(), pixels.begin());
+        }
+
+    private:
+        Document* m_document;
+        std::vector<Pixel> m_backup;
     };
 }

@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: RotateCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 20:59
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -33,13 +33,24 @@
 
 namespace Editor::Command
 {
-    class ICommand
+    class RotateCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        RotateCommand(Document* doc, float angle) : m_document{doc}, m_angle{angle} {}
+        ~RotateCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            Processor::Rotate(m_document->GetImage(), m_angle);
+        }
+
+        void Undo() override
+        {
+            Processor::Rotate(m_document->GetImage(), -m_angle);
+        }
+
+    private:
+        Document* m_document;
+        float m_angle;
     };
 }

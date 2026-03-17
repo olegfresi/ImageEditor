@@ -69,9 +69,6 @@ namespace Editor
 
         ~Window() override;
 
-
-        void ExecuteFilter(const std::function<void(Image&)>& filterTask);
-
         /**
         * Set the document associated with this window.
         *
@@ -102,10 +99,10 @@ namespace Editor
         */
         void LoadDocument(Document* doc);
 
-
-        sigc::signal<void()> signal_new_document;
-        sigc::signal<void()> signal_save_document;
-        std::function<void(const std::filesystem::path&)> m_openDocumentCallback;
+    public:
+        sigc::signal<void()> signalNewDocument;
+        sigc::signal<void()> signalSaveDocument;
+        std::function<void(const std::filesystem::path&)> openDocumentCallback;
 
     protected:
         /**
@@ -125,22 +122,6 @@ namespace Editor
         void OnSave();
 
         /**
-        * Rotate image handler.
-        *
-        * Rotates the current image 90 degrees clockwise.
-        * Updates display and histogram after rotation.
-        */
-        void OnRotate();
-
-        /**
-        * Flip image handler.
-        *
-        * Flips the current image horizontally (mirror across vertical axis).
-        * Updates display and histogram after flip.
-        */
-        void OnFlip();
-
-        /**
         * About dialog handler.
         *
         * Displays information about the application and credits.
@@ -150,7 +131,7 @@ namespace Editor
     private:
 
         /**
-        * Initialize and setup the application menu.
+        * Initialize and set up the application menu.
         *
         * Creates menu items, actions, and signal handlers for user interactions.
         * Sets up keyboard shortcuts and action groups.
@@ -174,14 +155,13 @@ namespace Editor
         */
         void UpdateDisplayFromDocument();
 
-        /**
-        * Notify that the image has changed and update the display.
-        *
-        * Called when the image data has been modified to refresh the visual display.
-        * Ensures the UI stays synchronized with the current image state.
-        *
-        */
-        void NotifyImageChanged();
+        void UpdateImageView();
+
+        void UpdateActionEnabled(const std::string& actionName, const std::function<bool()>& condition);
+
+        void UpdateAllActionsEnabled();
+
+        void UpdateUndoRedoState() const;
 
         /**
         * Initialize drag and drop functionality for the window.
@@ -222,6 +202,8 @@ namespace Editor
         */
         void AddActionsToGroupAction();
 
+        void AddSimpleAction(const std::string& name, const sigc::slot<void(const Glib::VariantBase&)>& callback);
+
         /**
         * Add an action to the action group with optional parameters.
         *
@@ -243,16 +225,18 @@ namespace Editor
                                       });
         }
 
+    private:
         int m_width;
         int m_height;
 
         std::string m_title;
-        std::string m_currentFilePath;
 
         Document* m_document = nullptr;
 
+        std::unordered_map<std::string, Glib::RefPtr<Gio::SimpleAction>> m_actions;
+
         std::vector<uint8_t> m_displayBuffer;
-        std::vector<Pixel> m_originalPixelsBackup;
+        std::vector<Pixel> m_startPixels;
 
         Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
         Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
@@ -266,10 +250,11 @@ namespace Editor
         Gtk::Frame m_histogramFrame;
         Gtk::Frame m_curveFrame;
 
-        Glib::RefPtr<Gdk::Pixbuf> m_pixbuf;
-        Glib::RefPtr<Gdk::Pixbuf> m_originalPixbuf;
+        Glib::RefPtr<Gdk::Pixbuf> m_pixelBuffer;
+        Glib::RefPtr<Gdk::Pixbuf> m_originalPixelBuffer;
         Glib::RefPtr<Gio::SimpleActionGroup> m_actionGroup;
 
+        Editor::Widget::ToneCurveState m_startState;
         Editor::Widget::ToneCurveWidget m_toneCurve;
         Editor::Widget::HistogramWidget m_histogram;
     };

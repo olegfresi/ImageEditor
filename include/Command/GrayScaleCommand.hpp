@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: GrayScaleCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 20:59
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,17 +29,38 @@
  * SOFTWARE.
  */
 #pragma once
+#include "Command.hpp"
+#include "../Core/Document.hpp"
+#include "../Core/Processing.hpp"
 
 
 namespace Editor::Command
 {
-    class ICommand
+    class GrayScaleCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        GrayScaleCommand(Document* document) : m_document{document} {}
+        ~GrayScaleCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            auto& image = m_document->GetImage();
+            auto pixels = image.GetPixelData();
+
+            m_backup.assign(pixels.begin(), pixels.end());
+
+            Processor::ToGrayScale(image);
+        }
+        void Undo() override
+        {
+            auto& image = m_document->GetImage();
+            auto pixels = image.GetPixelData();
+
+            std::ranges::copy(m_backup.begin(), m_backup.end(), pixels.begin());
+        }
+
+    private :
+        Document* m_document;
+        std::vector<Pixel> m_backup;
     };
 }

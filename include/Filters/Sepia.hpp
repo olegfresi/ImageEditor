@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: GaussianFilter.hpp
+ * File: Sepia.hpp
  * Author: olegfresi
- * Created: 24/02/26 18:26
+ * Created: 14/03/26 17:57
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,43 +29,10 @@
  * SOFTWARE.
  */
 #pragma once
-#include "../Core/Image.hpp"
-#include "../../include/Math/Convolution.hpp"
+#include "../../include/Core/Image.hpp"
+
 
 namespace Editor::Filter
 {
-    struct FloatRGB
-    {
-        float r, g, b;
-    };
-
-    /**
-    * Apply Gaussian blur filter to an image.
-    *
-    * Applies a Gaussian blur with the specified standard deviation.
-    * Uses separable convolution for efficient processing.
-    * The image is modified in-place.
-    *
-    * @param img Image to blur, modified in-place
-    * @param sigma Standard deviation controlling blur strength
-    */
-    void GaussianBlur(Image& img, float sigma);
-
-    /**
-    * Apply a uniform box blur kernel to a float matrix.
-    *
-    * @param input Source matrix containing float samples
-    * @param output Destination matrix that receives the blurred image
-    * @param radius Radius around each sample used for averaging
-    */
-    void BoxBlur(const Math::Matrix<float>& input, Math::Matrix<float>& output, int radius);
-
-    /**
-    * Map a Gaussian sigma onto a series of odd-sized box kernels.
-    *
-    * @param sigma Desired standard deviation of the approximated Gaussian
-    * @param n Number of box blurs that will be chained together
-    * @return Vector of n odd integers describing each box width
-    */
-    std::vector<int> BoxesForGauss(float sigma, int n);
-} 
+    void Sepia(Image& img);
+}

@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: ColorInversionCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 21:01
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -33,13 +33,25 @@
 
 namespace Editor::Command
 {
-    class ICommand
+
+    class ColorInversionCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        ColorInversionCommand(Document* doc) : m_document{doc} {}
+        ~ColorInversionCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            Processor::Invert(m_document->GetImage());
+        }
+
+        void Undo() override
+        {
+            Processor::Invert(m_document->GetImage());
+        }
+
+
+    private:
+        Document* m_document;
     };
 }

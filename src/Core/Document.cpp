@@ -1,4 +1,7 @@
 #include "../../include/Core/Document.hpp"
+
+#include <iostream>
+
 #include "../../include/Core/FileManager.hpp"
 
 
@@ -10,21 +13,59 @@ namespace Editor
 
     bool Document::IsDirty() const { return m_isDirty; }
 
-    void Document::ExecuteCommand(std::unique_ptr<Command> command)
+    void Document::ExecuteCommand(std::unique_ptr<Command::ICommand> command)
     {
         command->Execute();
-        m_undoStack.push(std::move(command));
+
+        m_undoStack.push_back(std::move(command));
+        m_redoStack.clear();
         m_isDirty = true;
+
+        NotifyImageChanged();
+        UpdateDirtyFlag();
+
+        if(m_onCommandStackChanged)
+            m_onCommandStackChanged();
     }
 
     void Document::Undo()
     {
-        m_undoStack.pop();
+        if(m_undoStack.empty())
+            return;
+
+        auto cmd = std::move(m_undoStack.back());
+        m_undoStack.pop_back();
+
+        cmd->Undo();
+
+        m_redoStack.push_back(std::move(cmd));
+
+        UpdateDirtyFlag();
+
+        NotifyImageChanged();
+
+        if(m_onCommandStackChanged)
+            m_onCommandStackChanged();
     }
 
     void Document::Redo()
     {
-        m_redoStack.pop();
+        if(m_redoStack.empty())
+            return;
+
+        auto cmd = std::move(m_redoStack.back());
+        m_redoStack.pop_back();
+
+        cmd->Execute();
+
+        m_undoStack.push_back(std::move(cmd));
+
+        UpdateDirtyFlag();
+
+        NotifyImageChanged();
+
+        if(m_onCommandStackChanged)
+            m_onCommandStackChanged();
     }
 
     void Document::Save()
@@ -34,6 +75,7 @@ namespace Editor
 
         FileManager::SaveAs(*this, m_filePath);
 
+        m_saveIndex = m_undoStack.size();
         m_isDirty = false;
     }
 
@@ -45,5 +87,16 @@ namespace Editor
         m_filePath = path;
 
         m_isDirty = false;
+    }
+
+    void Document::UpdateDirtyFlag()
+    {
+        m_isDirty = (m_undoStack.size() != m_saveIndex);
+    }
+
+    void Document::NotifyImageChanged() const
+    {
+        if(m_onImageChanged)
+            m_onImageChanged();
     }
 }

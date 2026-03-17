@@ -117,7 +117,6 @@ namespace Editor
         */
         int Run(int argc, char** argv) const;
 
-
         /**
         * Create a new document from a file path.
         *

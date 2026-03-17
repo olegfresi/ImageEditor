@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: SharpenCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 21:00
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -33,13 +33,30 @@
 
 namespace Editor::Command
 {
-    class ICommand
+    class SharpenCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        SharpenCommand(Document* doc) : m_document{doc} {}
+        ~SharpenCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            auto& img = m_document->GetImage();
+            auto pixels = img.GetPixelData();
+
+            m_backup.assign(pixels.begin(), pixels.end());
+
+            Processor::Invert(img);
+        }
+
+        void Undo() override
+        {
+            auto pixels = m_document->GetImage().GetPixelData();
+            std::ranges::copy(m_backup.begin(), m_backup.end(), pixels.begin());
+        }
+
+    private:
+        Document* m_document;
+        std::vector<Pixel> m_backup;
     };
 }

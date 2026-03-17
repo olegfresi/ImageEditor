@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: BlurCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 14/03/26 20:57
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -33,13 +33,31 @@
 
 namespace Editor::Command
 {
-    class ICommand
+    class BlurCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        BlurCommand(Document* doc, float radius) : m_document{doc}, m_radius{radius} {}
+        ~BlurCommand() override = default;
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            auto& img = m_document->GetImage();
+            auto pixels = img.GetPixelData();
+
+            m_backup.assign(pixels.begin(), pixels.end());
+
+            Processor::Blur(img, m_radius);
+        }
+
+        void Undo() override
+        {
+            auto pixels = m_document->GetImage().GetPixelData();
+            std::ranges::copy(m_backup.begin(), m_backup.end(), pixels.begin());
+        }
+
+    private:
+        Document* m_document;
+        std::vector<Pixel> m_backup;
+        float m_radius;
     };
 }

@@ -2,16 +2,16 @@
 #include <gtkmm/application.h>
 #include <algorithm>
 
+
 namespace Editor
 {
-
     Application::Application(AppConfiguration config) : m_config{std::move(config)}
     {
         m_app = Gtk::Application::create("org.gtkmm.example");
         m_app->signal_activate().connect(sigc::mem_fun(*this, &Application::OnActivate));
     }
 
-   Application::~Application() { ShutDown(); }
+    Application::~Application() { ShutDown(); }
 
     int Application::Run(int argc, char** argv) const
     {
@@ -20,12 +20,12 @@ namespace Editor
 
     void Application::OnActivate()
     {
-        if (!m_window)
+        if(!m_window)
         {
             m_window = std::make_unique<Window>(m_config.winWidth, m_config.winHeight, m_config.name);
             m_app->add_window(*m_window);
 
-            m_window->SetOpenDocumentCallback([this](const std::filesystem::path& path){
+            m_window->SetOpenDocumentCallback([this](const std::filesystem::path& path) {
                 OnWindowOpenDocument(path, m_window.get());
             });
         }
@@ -35,7 +35,8 @@ namespace Editor
 
     void Application::ShutDown()
     {
-        if (m_window) {
+        if(m_window)
+        {
             m_window->hide();
             m_app->remove_window(*m_window);
             m_window.reset();
@@ -52,19 +53,18 @@ namespace Editor
     void Application::CloseDocument(Document* document)
     {
         auto it = std::ranges::find_if(m_documents.begin(), m_documents.end(),
-                       [document](const std::unique_ptr<Document>& ptr)
-                       {
-                           return ptr.get() == document;
-                       });
+                                       [document](const std::unique_ptr<Document>& ptr) {
+                                           return ptr.get() == document;
+                                       });
 
-        if (it != m_documents.end())
+        if(it != m_documents.end())
             m_documents.erase(it);
     }
 
     void Application::OnWindowOpenDocument(const std::filesystem::path& path, Window* win)
     {
         Document* doc = NewDocument(path);
-        if (!doc)
+        if(!doc)
             return;
 
         win->LoadDocument(doc);

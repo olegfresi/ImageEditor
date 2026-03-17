@@ -9,6 +9,18 @@ pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 
 add_executable(ImageEditor
         include/Core/Profiler.hpp
+        include/Command/Command.hpp
+        include/Command/EmbossCommand.hpp
+        include/Command/GrayScaleCommand.hpp
+        include/Command/SharpenCommand.hpp
+        include/Command/BlurCommand.hpp
+        include/Command/SepiaCommand.hpp
+        include/Command/ColorInversionCommand.hpp
+        include/Command/EdgeDetectCommand.hpp
+        include/Command/FlipCommand.hpp
+        include/Command/RotateCommand.hpp
+        include/Command/AddLayerCommand.hpp
+        include/Command/ToneCurveChangeCommand.hpp
 
         src/Core/Application.cpp
         src/Core/Image.cpp
@@ -24,6 +36,7 @@ add_executable(ImageEditor
         src/Filter/EdgeDetection.cpp
         src/Filter/Emboss.cpp
         src/Filter/ColorInversion.cpp
+        src/Filter/Sepia.cpp
 
         src/Math/Convolution.cpp
         src/Math/Gaussian.cpp

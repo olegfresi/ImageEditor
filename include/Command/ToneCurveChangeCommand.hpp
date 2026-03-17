@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: Command.hpp
+ * File: ToneCurveChangeCommand.hpp
  * Author: olegfresi
- * Created: 03/03/26 11:56
+ * Created: 15/03/26 22:27
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,17 +29,51 @@
  * SOFTWARE.
  */
 #pragma once
+#include "Command.hpp"
+#include "../Core/Document.hpp"
 
 
 namespace Editor::Command
 {
-    class ICommand
+    using namespace  Widget;
+    class ToneCurveCommand : public ICommand
     {
     public:
-        ICommand() = default;
-        virtual ~ICommand() = default;
+        ToneCurveCommand(Document* doc, ToneCurveWidget& widget, const ToneCurveState& before,
+                         const ToneCurveState& after, const std::vector<Pixel>& beforePixels)
+            : m_document{doc}, m_widget{widget}, m_before{before}, m_after{after}, m_beforePixels{beforePixels} {}
 
-        virtual void Execute() = 0;
-        virtual void Undo() = 0;
+        void Execute() override
+        {
+            Apply(m_after);
+        }
+
+        void Undo() override
+        {
+            auto& img = m_document->GetImage();
+
+            std::ranges::copy(m_beforePixels.begin(), m_beforePixels.end(), img.GetPixelData().begin());
+
+            m_widget.SetState(m_before);
+        }
+
+    private:
+        void Apply(const ToneCurveState& state)
+        {
+            auto& img = m_document->GetImage();
+
+            Utils::ApplyLut(img.GetPixelData(), m_beforePixels, state.lut);
+
+            m_widget.SetState(state);
+        }
+
+    private:
+        Document* m_document;
+        ToneCurveWidget& m_widget;
+
+        ToneCurveState m_before;
+        ToneCurveState m_after;
+
+        std::vector<Pixel> m_beforePixels;
     };
 }

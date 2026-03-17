@@ -42,6 +42,12 @@ namespace Editor::Widget
         bool operator <(const ControlPoint& other) const { return x < other.x; }
     };
 
+    struct ToneCurveState
+    {
+        std::array<uint8_t, 256> lut;
+        std::vector<ControlPoint> points;
+    };
+
     class ToneCurveWidget : public Gtk::DrawingArea
     {
     public:
@@ -64,7 +70,7 @@ namespace Editor::Widget
         * Values are converted from normalized [0,1] to integer range [0,255].
         * @return array representing integer range
         */
-        const std::array<uint8_t, 256>& GetLUT() const;
+        const std::array<uint8_t, 256>& GetLUT() const { return m_lutCache; }
 
         /**
         * Signal emitted when curve changes.
@@ -98,6 +104,21 @@ namespace Editor::Widget
         */
         void SetHistogram(const std::array<float,256>& hist);
 
+        /**
+        * Replace the cached tone curve LUT without modifying control points.
+        *
+        * This is primarily used by the undo/redo command so the widget can
+        * display the LUT that was applied at a given point in history without
+        * recomputing the tone curve geometry.
+        *
+        * @param lut 256-entry table mapping input intensities [0,255] to output bytes.
+        */
+        void SetLut(const std::array<uint8_t, 256>& lut);
+
+        void SetState(const ToneCurveState& state);
+
+        ToneCurveState GetState() const;
+
     private:
         std::vector<ControlPoint> m_points{};
         std::vector<float> m_curveCache{};
@@ -114,6 +135,8 @@ namespace Editor::Widget
 
         sigc::signal<void()> m_signalCurveChanged;
         sigc::signal<void()> m_signalDragFinished;
+
+    private:
 
         /**
         * Precompute the tone curve lookup table (LUT).

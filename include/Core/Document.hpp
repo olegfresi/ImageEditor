@@ -98,7 +98,7 @@ namespace Editor
         *
         * @param command The command to execute.
         */
-        void ExecuteCommand(std::unique_ptr<Command> command);
+        void ExecuteCommand(std::unique_ptr<Command::ICommand> command);
 
         /**
         * Undo the last executed command.
@@ -115,13 +115,6 @@ namespace Editor
         void Redo();
 
         /**
-        * Get the file path of the document.
-        *
-        * @return The file path associated with the document.
-        */
-        [[nodiscard]] std::filesystem::path GetFilePath() const { return m_filePath; }
-
-        /**
         * Set the file path of the document.
         *
         * Used when a document is created from an existing file on disk.
@@ -130,12 +123,20 @@ namespace Editor
         */
         void SetFilePath(const std::filesystem::path& path) { m_filePath = path; }
 
+        void SetOnImageChangedCallback(std::function<void()> callback) { m_onImageChanged = std::move(callback); }
+
+        void SetOnCommandStackChangedCallback(std::function<void()> cb) { m_onCommandStackChanged = std::move(cb); }
+
         /**
         * Check if the document has unsaved changes.
         *
         * @return True if the document has been modified since last save, false otherwise.
         */
         [[nodiscard]] bool IsDirty() const;
+
+        [[nodiscard]] bool CanUndo() const { return !m_undoStack.empty(); }
+
+        [[nodiscard]] bool CanRedo() const { return !m_redoStack.empty(); }
 
         /**
         * Get the image associated with the document.
@@ -146,6 +147,12 @@ namespace Editor
         */
         [[nodiscard]] const Image& GetImage() const { return m_image; }
 
+        /**
+        * Get the file path of the document.
+        *
+        * @return The file path associated with the document.
+        */
+        [[nodiscard]] std::filesystem::path GetFilePath() const { return m_filePath; }
 
         /**
         * Get the image associated with the document (non-const).
@@ -159,17 +166,29 @@ namespace Editor
     private:
         int m_width{};
         int m_height{};
-        uint64_t m_revision{};
+        int m_revision{};
+
         bool m_isDirty{false};
+        bool m_isPreviewActive{false};
+
+        size_t m_saveIndex = 0;
 
         std::filesystem::path m_filePath{};
+
         ColorSpace m_colorSpace = ColorSpace::RGB;
 
         Image m_image;
 
-        std::vector<Layer> m_layers{};
-        std::stack<std::unique_ptr<Command>> m_undoStack{};
-        std::stack<std::unique_ptr<Command>> m_redoStack{};
+        std::function<void()> m_onImageChanged;
+        std::function<void()> m_onCommandStackChanged;
 
+        std::vector<Pixel> m_previewBase;
+        std::vector<Layer> m_layers{};
+        std::vector<std::unique_ptr<Command::ICommand>> m_undoStack{};
+        std::vector<std::unique_ptr<Command::ICommand>> m_redoStack{};
+
+    private:
+        void NotifyImageChanged() const;
+        void UpdateDirtyFlag();
     };
 }

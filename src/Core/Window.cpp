@@ -16,7 +16,16 @@
 #include "../../include/Core/Window.hpp"
 #include "../../include/Core/FileManager.hpp"
 #include "../../include/Core/Utils.hpp"
-#include "../../include/Core/Processing.hpp"
+#include "../../include/Command/GrayScaleCommand.hpp"
+#include "../../include/Command/EmbossCommand.hpp"
+#include "../../include/Command/EdgeDetectCommand.hpp"
+#include "../../include/Command/SharpenCommand.hpp"
+#include "../../include/Command/BlurCommand.hpp"
+#include "../../include/Command/ColorInversionCommand.hpp"
+#include "../../include/Command/SepiaCommand.hpp"
+#include "../../include/Command/FlipCommand.hpp"
+#include "../../include/Command/RotateCommand.hpp"
+#include "../../include/Command/ToneCurveChangeCommand.hpp"
 
 
 namespace Editor
@@ -32,9 +41,6 @@ namespace Editor
         // --- ACTION GROUP SETUP ---
         m_actionGroup = Gio::SimpleActionGroup::create();
         AddAction("import", &Window::OnImport);
-        AddAction("save", &Window::OnSave);
-        AddAction("rotate", &Window::OnRotate);
-        AddAction("flip", &Window::OnFlip);
         AddAction("about", &Window::OnAbout);
 
         AddActionsToGroupAction();
@@ -49,7 +55,10 @@ namespace Editor
 
         auto submenuEdit = Gio::Menu::create();
         submenuEdit->append("Rotate", "win.rotate");
-        submenuEdit->append("Flip", "win.flip");
+        submenuEdit->append("Flip Vertical", "win.flip_vertical");
+        submenuEdit->append("Flip Horizontal", "win.flip_horizontal");
+        submenuEdit->append("Undo", "win.undo");
+        submenuEdit->append("Redo", "win.redo");
         menu->append_submenu("Edit", submenuEdit);
 
         auto submenuFilter = Gio::Menu::create();
@@ -58,6 +67,7 @@ namespace Editor
         submenuFilter->append("Sharpen", "win.sharpen");
         submenuFilter->append("Emboss", "win.emboss");
         submenuFilter->append("Invert colors", "win.invert");
+        submenuFilter->append("Sepia", "win.sepia");
         submenuFilter->append("Edge Detect", "win.edge_detect");
         menu->append_submenu("Filter", submenuFilter);
 
@@ -129,20 +139,40 @@ namespace Editor
         SetupDragAndDrop();
 
         m_toneCurve.SignalCurveChanged().connect([this]() {
+
+            if(!m_document)
+                return;
+
+            auto& image = m_document->GetImage();
+            auto pixels = image.GetPixelData();
+
+            if(m_startPixels.empty())
+            {
+                m_startPixels.assign(pixels.begin(), pixels.end());
+                m_startState = m_toneCurve.GetState();
+            }
+
             const auto& lut = m_toneCurve.GetLUT();
-            Utils::ApplyLut(m_document->GetImage().GetPixelData(), m_originalPixelsBackup, lut);
 
-            NotifyImageChanged();
+            Utils::ApplyLut(pixels, m_startPixels, lut);
 
-            if(m_document)
-                m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 16);
+            UpdateImageView();
+            m_histogram.SetImage(pixels, 0, 0, 16);
         });
 
         m_toneCurve.SignalDragFinished().connect([this]() {
-            if(m_document)
-            {
-                m_histogram.SetImage(m_document->GetImage().GetPixelData(), 0, 0, 1);
-            }
+
+            if(!m_document)
+                return;
+
+            auto endState = m_toneCurve.GetState();
+
+            auto cmd = std::make_unique<Command::ToneCurveCommand>(m_document, m_toneCurve, m_startState, endState,
+                                                                   m_startPixels);
+
+            m_document->ExecuteCommand(std::move(cmd));
+
+            m_startPixels.clear();
         });
     }
 
@@ -162,10 +192,9 @@ namespace Editor
 
                 std::filesystem::path path = file->get_path();
 
-                if(m_openDocumentCallback)
-                    m_openDocumentCallback(path);
-            }
-            catch(const Glib::Error& ex)
+                if(openDocumentCallback)
+                    openDocumentCallback(path);
+            } catch(const Glib::Error& ex)
             {
                 auto err = Gtk::AlertDialog::create("Load error");
                 err->set_detail(ex.what());
@@ -177,15 +206,27 @@ namespace Editor
     void Window::LoadDocument(Document* doc)
     {
         m_document = doc;
-        auto pixelSpan = m_document->GetImage().GetPixelData();
-        m_originalPixelsBackup.assign(pixelSpan.begin(), pixelSpan.end());
 
-        NotifyImageChanged();
+        if(!m_document)
+            return;
+
+        m_document->SetOnImageChangedCallback([this] {
+            UpdateImageView();
+        });
+
+        m_document->SetOnCommandStackChangedCallback([this] {
+            UpdateUndoRedoState();
+        });
+
+        UpdateImageView();
+        UpdateUndoRedoState();
+        UpdateAllActionsEnabled();
 
         auto initialLum = m_histogram.GetLuminanceHistogram();
         m_toneCurve.SetHistogram(initialLum);
 
-        m_infoLabel.set_markup("<b>File:</b> " + m_document->GetFilePath().filename().string());
+        m_infoLabel.set_markup("<b>File:</b> " +
+                               m_document->GetFilePath().filename().string());
     }
 
     void Window::OnSave()
@@ -214,16 +255,14 @@ namespace Editor
                     auto success_dialog = Gtk::AlertDialog::create("Document saved");
                     success_dialog->set_detail("The document has been saved successfully.");
                     success_dialog->show(*this);
-                }
-                catch(const Glib::Error& ex)
+                } catch(const Glib::Error& ex)
                 {
                     auto error_dialog = Gtk::AlertDialog::create("Error saving document");
                     error_dialog->set_detail(ex.what());
                     error_dialog->show(*this);
                 }
             });
-        }
-        catch(const std::exception& ex)
+        } catch(const std::exception& ex)
         {
             auto error_dialog = Gtk::AlertDialog::create("Error saving document");
             error_dialog->set_detail(ex.what());
@@ -231,35 +270,11 @@ namespace Editor
         }
     }
 
-    void Window::OnRotate()
-    {
-        Processor::Rotate(m_document->GetImage());
-        NotifyImageChanged();
-    }
-
-    void Window::OnFlip() // Horizontal
-    {
-        Processor::FlipVertical(m_document->GetImage());
-        NotifyImageChanged();
-    }
-
     void Window::OnAbout()
     {
         auto about_dialog = Gtk::AlertDialog::create("Image Editor v1.0");
         about_dialog->set_detail("Created with gtkmm4 and C++\n2026 Edition");
         about_dialog->show(*this);
-    }
-
-    void Window::ExecuteFilter(const std::function<void(Image&)>& filterTask)
-    {
-        if(!m_document)
-            return;
-
-        filterTask(m_document->GetImage());
-
-        auto pixelSpan = m_document->GetImage().GetPixelData();
-        m_originalPixelsBackup.assign(pixelSpan.begin(), pixelSpan.end());
-        NotifyImageChanged();
     }
 
     void Window::SetupMenu()
@@ -275,10 +290,10 @@ namespace Editor
         m_vbox.append(*menubar);
     }
 
-    void Window::NotifyImageChanged()
+    void Window::UpdateImageView()
     {
         if(!m_document)
-            return;
+            throw std::runtime_error("Document is null");
 
         auto& image = m_document->GetImage();
         std::span<Pixel> pixels = image.GetPixelData();
@@ -323,10 +338,37 @@ namespace Editor
 
     void Window::SetOpenDocumentCallback(std::function<void(const std::filesystem::path&)> cb)
     {
-        m_openDocumentCallback = std::move(cb);
+        openDocumentCallback = std::move(cb);
     }
 
-    void Window::SetDocument(Document* document) { m_document = document; }
+    void Window::SetDocument(Document* document)
+    {
+        m_document = document;
+        m_document->SetOnImageChangedCallback([this] {
+            UpdateImageView();
+        });
+
+        m_document->SetOnCommandStackChangedCallback([this] {
+            UpdateUndoRedoState();
+        });
+
+        UpdateUndoRedoState();
+    }
+
+    void Window::UpdateUndoRedoState() const
+    {
+
+        if(!m_document)
+            return;
+
+        auto undoIt = m_actions.find("undo");
+        if(undoIt != m_actions.end() && undoIt->second)
+            undoIt->second->set_enabled(m_document->CanUndo());
+
+        auto redoIt = m_actions.find("redo");
+        if(redoIt != m_actions.end() && redoIt->second)
+            redoIt->second->set_enabled(m_document->CanRedo());
+    }
 
     void Window::SetupDragAndDrop()
     {
@@ -345,7 +387,7 @@ namespace Editor
 
     bool Window::OnDrop(const Glib::ValueBase& value, double, double) const
     {
-        if(!m_openDocumentCallback)
+        if(!openDocumentCallback)
             return false;
 
         const GValue* g_value = value.gobj();
@@ -380,24 +422,90 @@ namespace Editor
         if(path_str.empty())
             return false;
 
-        if(m_openDocumentCallback)
+        if(openDocumentCallback)
         {
-            m_openDocumentCallback(std::filesystem::path{path_str});
+            openDocumentCallback(std::filesystem::path{path_str});
             return true;
         }
 
         return false;
     }
 
+    void Window::UpdateActionEnabled(const std::string& actionName, const std::function<bool()>& condition)
+    {
+        auto it = m_actions.find(actionName);
+        if(it != m_actions.end() && it->second)
+            it->second->set_enabled(condition());
+    }
+
+    void Window::UpdateAllActionsEnabled()
+    {
+        bool hasDoc = (m_document != nullptr);
+
+        for(const auto& [name, action] : m_actions)
+        {
+            if(name == "import")
+                action->set_enabled(true);
+            else if(name == "about")
+                action->set_enabled(true);
+            else if(name == "undo")
+                action->set_enabled(hasDoc && m_document->CanUndo());
+            else if(name == "redo")
+                action->set_enabled(hasDoc && m_document->CanRedo());
+            else
+                action->set_enabled(hasDoc);
+        }
+    }
+
+    void Window::AddSimpleAction(const std::string& name, const sigc::slot<void(const Glib::VariantBase&)>& callback)
+    {
+        auto action = Gio::SimpleAction::create(name);
+        action->signal_activate().connect(callback);
+        m_actionGroup->add_action(action);
+        m_actions[name] = action;
+    }
+
     void Window::AddActionsToGroupAction()
     {
-        m_actionGroup->add_action("grayscale", [this] {
-           ExecuteFilter([](Image& img) {
-               Processor::ToGrayScale(img);
-           });
-       });
+        AddSimpleAction("undo", [this](auto) {
+            if(m_document)
+                m_document->Undo();
+        });
 
-        m_actionGroup->add_action("blur", [this] {
+        AddSimpleAction("redo", [this](auto) {
+            if(m_document)
+                m_document->Redo();
+        });
+
+        AddSimpleAction("rotate", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::RotateCommand>(m_document, 90);
+            m_document->ExecuteCommand(std::move(cmd));
+        });
+
+        AddSimpleAction("flip_horizontal", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::FlipCommand>(m_document, Command::FlipDirection::Horizontal);
+            m_document->ExecuteCommand(std::move(cmd));
+        });
+
+        AddSimpleAction("flip_vertical", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::FlipCommand>(m_document, Command::FlipDirection::Vertical);
+            m_document->ExecuteCommand(std::move(cmd));
+        });
+
+        AddSimpleAction("grayscale", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::GrayScaleCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
+        });
+
+        AddSimpleAction("blur", [this](auto) {
             auto dialog = Gtk::make_managed<Gtk::Dialog>("Set Blur Radius", *this, true);
             dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
             dialog->add_button("_Apply", Gtk::ResponseType::OK);
@@ -409,39 +517,59 @@ namespace Editor
             dialog->signal_response().connect([dialog, spin, this](int response_id) {
                 if(response_id == static_cast<int>(Gtk::ResponseType::OK))
                 {
-                    auto radius = static_cast<float>(spin->get_value());
-                    ExecuteFilter([radius](Image& img) {
-                        Processor::Blur(img, radius);
-                    });
+                    if(!m_document)
+                        return;
+
+                    float radius = static_cast<float>(spin->get_value());
+                    auto cmd = std::make_unique<Command::BlurCommand>(m_document, radius);
+                    m_document->ExecuteCommand(std::move(cmd));
                 }
+
                 dialog->set_visible(false);
             });
+
             dialog->show();
         });
 
-        m_actionGroup->add_action("sharpen", [this] {
-            ExecuteFilter([this](Image& img) {
-                Processor::Sharpen(img, m_originalPixelsBackup);
-            });
+        AddSimpleAction("sharpen", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::SharpenCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
         });
 
-        m_actionGroup->add_action("emboss", [this] {
-            ExecuteFilter([this](Image& img) {
-                Processor::Emboss(img, m_originalPixelsBackup);
-            });
+        AddSimpleAction("emboss", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::EmbossCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
         });
 
-        m_actionGroup->add_action("invert", [this] {
-            ExecuteFilter([](Image& img) {
-                Processor::Invert(img);
-            });
+        AddSimpleAction("invert", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::ColorInversionCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
         });
 
-        m_actionGroup->add_action("edge_detect", [this] {
-            ExecuteFilter([this](Image& img) {
-                Processor::EdgeDetect(img, m_originalPixelsBackup);
-            });
-
+        AddSimpleAction("edge_detect", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::EdgeDetectCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
         });
+
+        AddSimpleAction("sepia", [this](auto) {
+            if(!m_document)
+                return;
+            auto cmd = std::make_unique<Command::SepiaCommand>(m_document);
+            m_document->ExecuteCommand(std::move(cmd));
+        });
+
+        AddSimpleAction("save", [this](auto) {
+            OnSave();
+        });
+
+        UpdateAllActionsEnabled();
     }
 }
