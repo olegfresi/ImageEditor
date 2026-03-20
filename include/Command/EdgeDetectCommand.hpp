@@ -29,6 +29,8 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../Core/Document.hpp"
+#include "../Command/Command.hpp"
 
 
 namespace Editor::Command

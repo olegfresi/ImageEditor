@@ -1,6 +1,7 @@
 #include "../../include/Core/Utils.hpp"
 #include <algorithm>
 #include <thread>
+#include <cmath>
 
 
 namespace Editor::Utils
@@ -108,4 +109,5 @@ namespace Editor::Utils
             // Alpha (i+3) is skipped to preserve transparency
         }
     }
+
 }

@@ -29,6 +29,9 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../Core/Document.hpp"
+#include "Command.hpp"
+#include <iostream>
 
 
 namespace Editor::Command
@@ -41,7 +44,15 @@ namespace Editor::Command
 
         void Execute() override
         {
+            auto start = std::chrono::high_resolution_clock::now();
+
             Processor::Rotate(m_document->GetImage(), m_angle);
+
+            auto end = std::chrono::high_resolution_clock::now();
+
+            auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+            std::cout << "Rotate time: " << duration.count() << " ms" << std::endl;
         }
 
         void Undo() override

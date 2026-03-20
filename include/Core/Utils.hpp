@@ -34,11 +34,26 @@
 #include <span>
 #include <thread>
 #include <vector>
+
+#include "Document.hpp"
 #include "Image.hpp"
 #include "../Math/Matrix.hpp"
 
 namespace Editor::Utils
 {
+    struct AdjustParams
+    {
+        float exposure = 0.0f;
+        float brightness = 0.0f;
+        float contrast = 1.0f;
+        float highlights = 0.0f;
+        float shadows = 0.0f;
+        float black_point = 0.0f;
+        float temperature = 0.0f;
+        float clarity = 0.0f;
+        float texture = 0.0f;
+    };
+
     /**
     * Floating-point RGB image representation.
     *
@@ -153,5 +168,25 @@ namespace Editor::Utils
         // Join all threads to the main execution flow
         for(auto& th : threads)
             th.join();
+    }
+
+    void ApplyAllParameters(Image& img, const AdjustParams& p);
+
+    template<typename TCommand>
+    void ExecuteSliderCommand(Document* doc, float value)
+    {
+        doc->ExecuteCommand(std::make_unique<TCommand>(doc, value));
+    }
+
+    static int Clamp(int v)
+    {
+        return std::clamp(v, 0, 255);
+    }
+
+    static float Luminance(const Pixel& px)
+    {
+        return 0.2126f * static_cast<float>(px.GetR()) +
+               0.7152f * static_cast<float>(px.GetG()) +
+               0.0722f * static_cast<float>(px.GetB());
     }
 }

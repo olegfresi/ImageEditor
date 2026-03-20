@@ -33,14 +33,21 @@
 #include <string>
 #include <giomm/simpleactiongroup.h>
 #include <gtkmm/box.h>
+#include <gtkmm/paned.h>
 #include <gtkmm/window.h>
 #include <gtkmm/scrolledwindow.h>
 #include <gtkmm/picture.h>
 #include <gtkmm/label.h>
 #include <gtkmm/frame.h>
+#include <gtkmm/stack.h>
+#include <gtkmm/stackswitcher.h>
 #include "Document.hpp"
 #include "../Widget/Histogram.hpp"
 #include "../Widget/ToneCurve.hpp"
+#include "AnalysisOverlay.hpp"
+#include "PreviewRenderer.hpp"
+#include "Utils.hpp"
+#include "UI/ControlPanel.hpp"
 
 
 namespace Editor
@@ -155,12 +162,32 @@ namespace Editor
         */
         void UpdateDisplayFromDocument();
 
+        /**
+        * Refresh the main picture widgets from the current document.
+        *
+        * Rebuilds the GTK texture, updates the visible histogram widget, and regenerates
+        * the overlay mask so the display stays in sync with the document state.
+        */
         void UpdateImageView();
 
+        /**
+        * Conditionally enable or disable an action.
+        *
+        * Evaluates the supplied predicate and sets the associated action's enabled state.
+        */
         void UpdateActionEnabled(const std::string& actionName, const std::function<bool()>& condition);
 
+        /**
+        * Refresh every registered action's enabled state from the current document.
+        *
+        * Enables static actions like "import" and "about" always, while enabling editing
+        * and filter actions only when a document is loaded and undo/redo actions according to the stack.
+        */
         void UpdateAllActionsEnabled();
 
+        /**
+        * Synchronize the undo and redo actions with the document command stack.
+        */
         void UpdateUndoRedoState() const;
 
         /**
@@ -202,7 +229,38 @@ namespace Editor
         */
         void AddActionsToGroupAction();
 
+        /**
+        * Register a simple action in the shared action group.
+        *
+        * Creates a Gio::SimpleAction and wires the provided callback to its activation signal.
+        */
         void AddSimpleAction(const std::string& name, const sigc::slot<void(const Glib::VariantBase&)>& callback);
+
+        /**
+        * Render a transient preview texture from the provided pixel span.
+        *
+        * Used by interactive adjustments such as the tone curve to show a temporary snapshot
+        * before committing the edit to the document.
+        *
+        * @param previewPixels
+        * @param width
+        * @param height
+        */
+        void UpdateImageViewPreview(const std::span<const Pixel>& previewPixels, int width, int height);
+
+        /**
+        * Redraw whichever histogram widget is currently visible in the stack.
+        */
+        void UpdateVisibleHistogram();
+
+        /**
+        * Control panel callback invoked when a slider or knob changes.
+        *
+        * The implementation is currently a placeholder for future brightness/exposure commands.
+        */
+        void OnParameterChanged(const std::string& id, float value);
+
+        void OnParameterCommit(const std::string& id, float value);
 
         /**
         * Add an action to the action group with optional parameters.
@@ -226,22 +284,40 @@ namespace Editor
         }
 
     private:
+
         int m_width;
         int m_height;
 
-        std::string m_title;
+        std::string m_title{};
+
+        Utils::AdjustParams m_params{};
+
+        bool m_updateScheduled = false;
+        bool m_dragInProgress = false;
 
         Document* m_document = nullptr;
+        PreviewRenderer m_previewRenderer;
+        Analysis::AnalysisOverlay m_analyzer;
 
-        std::unordered_map<std::string, Glib::RefPtr<Gio::SimpleAction>> m_actions;
+        std::unordered_map<std::string, Glib::RefPtr<Gio::SimpleAction>> m_actions{};
+        std::unordered_map<std::string, std::function<std::unique_ptr<Command::ICommand>(Document*, float)>> m_paramCommands;
+        std::unordered_map<std::string, std::function<void(float)>> m_paramSetters;
 
-        std::vector<uint8_t> m_displayBuffer;
-        std::vector<Pixel> m_startPixels;
+        std::vector<uint8_t> m_displayBuffer{};
+        std::vector<Pixel> m_startPixels{};
 
+        Gtk::Stack m_histogramStack;
+        Gtk::StackSwitcher m_histogramSwitcher;
+
+        Gtk::Paned m_mainSplitter;
+        UI::ControlPanel m_controlPanel;
+
+        Gtk::Box m_histogramBox {Gtk::Orientation::VERTICAL};
         Gtk::Box m_vbox{Gtk::Orientation::VERTICAL};
         Gtk::Box m_imageContainer{Gtk::Orientation::VERTICAL};
         Gtk::Box m_controlsBox;
 
+        Gtk::Picture m_maskPicture;
         Gtk::Picture m_picture;
         Gtk::ScrolledWindow m_scrolled;
         Gtk::Label m_infoLabel{"No image loaded"};
@@ -256,6 +332,11 @@ namespace Editor
 
         Editor::Widget::ToneCurveState m_startState;
         Editor::Widget::ToneCurveWidget m_toneCurve;
-        Editor::Widget::HistogramWidget m_histogram;
+
+        Editor::Widget::HistogramWidget m_histogramRGB;
+        Editor::Widget::HistogramWidget m_histogramLum;
+        Editor::Widget::HistogramWidget m_histogramR;
+        Editor::Widget::HistogramWidget m_histogramG;
+        Editor::Widget::HistogramWidget m_histogramB;
     };
 }

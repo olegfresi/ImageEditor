@@ -36,6 +36,7 @@
 #include "../../include/Command/Command.hpp"
 #include "../Tools/Brush.hpp"
 
+
 /**
 * Color space format for document representation.
 *
@@ -132,11 +133,11 @@ namespace Editor
         *
         * @return True if the document has been modified since last save, false otherwise.
         */
-        [[nodiscard]] bool IsDirty() const;
+        [[nodiscard]] bool IsDirty() const noexcept;
 
-        [[nodiscard]] bool CanUndo() const { return !m_undoStack.empty(); }
+        [[nodiscard]] bool CanUndo() const noexcept { return !m_undoStack.empty(); }
 
-        [[nodiscard]] bool CanRedo() const { return !m_redoStack.empty(); }
+        [[nodiscard]] bool CanRedo() const noexcept { return !m_redoStack.empty(); }
 
         /**
         * Get the image associated with the document.
@@ -145,14 +146,14 @@ namespace Editor
         *
         * @return A constant reference to the document's image.
         */
-        [[nodiscard]] const Image& GetImage() const { return m_image; }
+        [[nodiscard]] const Image& GetImage() const noexcept { return m_image; }
 
         /**
         * Get the file path of the document.
         *
         * @return The file path associated with the document.
         */
-        [[nodiscard]] std::filesystem::path GetFilePath() const { return m_filePath; }
+        [[nodiscard]] std::filesystem::path GetFilePath() const noexcept { return m_filePath; }
 
         /**
         * Get the image associated with the document (non-const).
@@ -161,7 +162,9 @@ namespace Editor
         *
         * @return A reference to the document's image.
         */
-        [[nodiscard]] Image& GetImage() { return m_image; }
+        [[nodiscard]] Image& GetImage() noexcept { return m_image; }
+
+        void InvalidatePreview()  noexcept { m_previewImage = Image{}; }
 
     private:
         int m_width{};
@@ -178,6 +181,7 @@ namespace Editor
         ColorSpace m_colorSpace = ColorSpace::RGB;
 
         Image m_image;
+        Image m_previewImage;
 
         std::function<void()> m_onImageChanged;
         std::function<void()> m_onCommandStackChanged;

@@ -150,6 +150,24 @@ namespace Editor
         */
         static void Sepia(Image& image);
 
+        static void Brightness(Image& image, float amount);
+
+        static void Exposure(Image& image, float amount);
+
+        static void Highlights(Image& image, float amount);
+
+        static void BlackPoint(Image& image, float amount);
+
+        static void Shadows(Image& image, float amount);
+
+        static void Temperature(Image& image, float amount);
+
+        static void Clarity(Image& image, float amount);
+
+        static void Texture(Image& image, float amount);
+
+        static void Contrast(Image& image, float amount);
+
         /**
         * Restore the image to its original state using a backup buffer.
         *

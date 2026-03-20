@@ -48,10 +48,10 @@ namespace Editor
     */
     struct ImageData
     {
-        int width;
-        int height;
-        int channels;
-        std::vector<Pixel> pixels;
+        int width{};
+        int height{};
+        int channels{};
+        std::vector<Pixel> pixels{};
     };
 
     /**
@@ -63,6 +63,8 @@ namespace Editor
     class Image
     {
     public:
+        Image() = default;
+
         /**
         * Constructor with dimensions.
         *
@@ -158,21 +160,33 @@ namespace Editor
         *
         * @return Width in pixels
         */
-        [[nodiscard]] int GetWidth() const { return m_data.width; }
+        [[nodiscard]] int GetWidth() const noexcept { return m_data.width; }
 
         /**
         * Get image height.
         *
         * @return Height in pixels
         */
-        [[nodiscard]] int GetHeight() const { return m_data.height; }
+        [[nodiscard]] int GetHeight() const noexcept { return m_data.height; }
 
         /**
         * Get number of color channels.
         *
         * @return Channel count (typically 4 for RGBA)
         */
-        [[nodiscard]] int GetChannels() const { return m_data.channels; }
+        [[nodiscard]] int GetChannels() const noexcept { return m_data.channels; }
+
+        [[nodiscard]] bool Empty() const noexcept { return m_data.pixels.empty(); }
+
+        [[nodiscard]] Pixel& At(int x, int y)
+        {
+            return m_data.pixels[y * m_data.width + x];
+        }
+
+        [[nodiscard]] const Pixel& At(int x, int y) const
+        {
+            return m_data.pixels[y * m_data.width + x];
+        }
 
         /**
         * Get a read-only view of the image pixel data.

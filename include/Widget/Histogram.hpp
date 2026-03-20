@@ -41,6 +41,15 @@ namespace Editor::Widget
     {
     public:
 
+        enum class ChannelMode
+        {
+            Red,
+            Green,
+            Blue,
+            Rgb,
+            Luminance
+        };
+
         /**
         * Construct and initialize the Histogram widget.
         *
@@ -106,11 +115,11 @@ namespace Editor::Widget
         * Emits the histogram updated signal after computation.
         *
         * @param pixels View of Pixel objects representing the image
-        * @param width Width of the image in pixels
-        * @param height Height of the image in pixels
         * @param step Sampling step (1 = every pixel, 2 = every other pixel, etc.)
         */
-        void SetImage(std::span<const Pixel> pixels, int width, int height, int step = 1);
+        void SetImage(std::span<const Pixel> pixels, int step = 1);
+
+        void SetChannelMode(ChannelMode mode) { m_currentMode = mode; queue_draw(); }
 
     private:
 
@@ -130,11 +139,17 @@ namespace Editor::Widget
         int m_width = 0;
         int m_height = 0;
 
+        ChannelMode m_currentMode = ChannelMode::Rgb;
+
         std::vector<Pixel> m_pixels{};
         sigc::signal<void()> m_signalHistogramUpdated;
+
+        mutable bool m_hasShadowClipping = false;
+        mutable bool m_hasHighlightClipping = false;
 
         std::array<uint32_t, 256> m_r{};
         std::array<uint32_t, 256> m_g{};
         std::array<uint32_t, 256> m_b{};
+        std::array<uint32_t, 256> m_lum{};
     };
 }

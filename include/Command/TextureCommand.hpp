@@ -1,8 +1,8 @@
 /*
  * Project: ImageEditor
- * File: SepiaCommand.hpp
+ * File: TextureCommand.hpp
  * Author: olegfresi
- * Created: 14/03/26 21:01
+ * Created: 18/03/26 18:28
  * 
  * Copyright © 2026 olegfresi
  * 
@@ -29,36 +29,38 @@
  * SOFTWARE.
  */
 #pragma once
-#include "../Core/Document.hpp"
 #include "Command.hpp"
+#include "../Core/Document.hpp"
+#include "Core/Processing.hpp"
 
 
 namespace Editor::Command
 {
-    class SepiaCommand : public ICommand
+    class TextureCommand : public ICommand
     {
     public:
-        SepiaCommand(Document* doc) : m_document{doc} {}
-        ~SepiaCommand() override = default;
+        TextureCommand(Document* doc, float amount) : m_document{doc}, m_amount{amount}
+        {
+            auto& img = m_document->GetImage();
+            m_previousPixels.assign(img.GetPixelData().begin(), img.GetPixelData().end());
+        }
 
         void Execute() override
         {
             auto& img = m_document->GetImage();
-            auto pixels = img.GetPixelData();
-
-            m_backup.assign(pixels.begin(), pixels.end());
-
-            Processor::Sepia(img);
+            std::ranges::copy(m_previousPixels.begin(), m_previousPixels.end(), img.GetPixelData().begin());
+            Processor::Contrast(img, m_amount);
         }
 
         void Undo() override
         {
-            auto pixels = m_document->GetImage().GetPixelData();
-            std::ranges::copy(m_backup.begin(), m_backup.end(), pixels.begin());
+            auto& img = m_document->GetImage();
+            std::ranges::copy(m_previousPixels.begin(), m_previousPixels.end(), img.GetPixelData().begin());
         }
 
     private:
         Document* m_document;
-        std::vector<Pixel> m_backup;
+        std::vector<Pixel> m_previousPixels;
+        float m_amount;
     };
 }

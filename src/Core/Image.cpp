@@ -3,7 +3,8 @@
 
 namespace Editor
 {
-    Image::Image(int width, int height, int channels = 4) : m_data(width, height, channels) { m_data.pixels.resize(width * height); }
+    Image::Image(int width, int height, int channels = 4) :
+        m_data(width, height, channels) { m_data.pixels.resize(width * height); }
 
     Image::Image(int width, int height, int channels, std::vector<Pixel> pixels) :
         m_data{width, height, channels, std::move(pixels)} {}

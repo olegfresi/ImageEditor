@@ -29,11 +29,13 @@
  * SOFTWARE.
  */
 #pragma once
+#include "../Core/Document.hpp"
+#include "../Core/Processing.hpp"
+#include "Command.hpp"
 
 
 namespace Editor::Command
 {
-
     class ColorInversionCommand : public ICommand
     {
     public:
@@ -49,7 +51,6 @@ namespace Editor::Command
         {
             Processor::Invert(m_document->GetImage());
         }
-
 
     private:
         Document* m_document;

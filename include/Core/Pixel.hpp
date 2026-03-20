@@ -39,6 +39,8 @@ namespace Editor
     {
     public:
 
+        Pixel()  = default;
+
         /**
         * Equality operator.
         *

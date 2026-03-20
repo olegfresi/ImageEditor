@@ -6,7 +6,7 @@ namespace Editor::Widget
 {
     ToneCurveWidget::ToneCurveWidget() : m_lutCache{}
     {
-        set_size_request(256, 256);
+        set_size_request(-1, 180);
 
         // Initial state: perfect diagonal
         m_points = {{0.0, 0.0}, {1.0, 1.0}};
@@ -35,7 +35,7 @@ namespace Editor::Widget
 
     int ToneCurveWidget::FindPoint(double x, double y) const
     {
-        constexpr double radius = 0.04; // Click tolerance in normalized coordinates
+        constexpr double radius = 0.04;
         for(int i = 0; i < static_cast<int>(m_points.size()); i++)
         {
             double dx = m_points[i].x - x;
@@ -262,7 +262,7 @@ namespace Editor::Widget
     {
         m_lutCache = lut;
         for(int i = 0; i < 256; ++i)
-            m_curveCache[i] = static_cast<double>(lut[i]) / 255.0;
+            m_curveCache[i] = static_cast<float>(lut[i] / 255.0);
         queue_draw();
     }
 
@@ -277,8 +277,17 @@ namespace Editor::Widget
         m_points = state.points;
 
         for(int i = 0; i < 256; ++i)
-            m_curveCache[i] = static_cast<double>(m_lutCache[i]) / 255.0;
+            m_curveCache[i] = static_cast<float>(m_lutCache[i] / 255.0);
 
+        queue_draw();
+    }
+
+    void ToneCurveWidget::Reset()
+    {
+        m_points = {{0.0, 0.0}, {1.0, 1.0}};
+        m_selectedIdx = -1;
+
+        UpdateCurveCache();
         queue_draw();
     }
 }

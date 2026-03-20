@@ -3,13 +3,20 @@
 #include <gtkmm/filedialog.h>
 #include <gtkmm/dialog.h>
 #include <gtkmm/spinbutton.h>
+#include <gtkmm/stringlist.h>
+#include <gtkmm/dropdown.h>
+#include <gtkmm/expander.h>
 #include <gtkmm/alertdialog.h>
 #include <gtkmm/adjustment.h>
 #include <gtkmm/cssprovider.h>
 #include <gtkmm/droptarget.h>
 #include <gdkmm/memorytexture.h>
+#include <gdkmm/enums.h>
 #include <glibmm/main.h>
 #include <gdk/gdk.h>
+#include <gtkmm/eventcontrollerkey.h>
+#include <gtkmm/overlay.h>
+#include <gtkmm/picture.h>
 #include <gio/gio.h>
 #include <glib.h>
 #include <ranges>
@@ -26,6 +33,15 @@
 #include "../../include/Command/FlipCommand.hpp"
 #include "../../include/Command/RotateCommand.hpp"
 #include "../../include/Command/ToneCurveChangeCommand.hpp"
+#include "../../include/Command/ExposureCommand.hpp"
+#include "../../include/Command/TextureCommand.hpp"
+#include "../../include/Command/BrightnessCommand.hpp"
+#include "../../include/Command/ClarityCommand.hpp"
+#include "../../include/Command/ContrastCommand.hpp"
+#include "../../include/Command/ShadowsCommand.hpp"
+#include "../../include/Command/HighlightsCommand.hpp"
+#include "../../include/Command/BlackPointCommand.hpp"
+#include "../../include/Command/TemperatureCommand.hpp"
 
 
 namespace Editor
@@ -33,20 +49,26 @@ namespace Editor
     Window::Window(int width, int height, std::string title)
         : m_width{width}, m_height{height}, m_title{std::move(title)}
     {
+        // =======================
+        // BASIC WINDOW SETUP
+        // =======================
         set_default_size(m_width, m_height);
         set_title(m_title);
         set_hide_on_close(true);
         set_resizable(true);
 
-        // --- ACTION GROUP SETUP ---
+        // =======================
+        // ACTION GROUP
+        // =======================
         m_actionGroup = Gio::SimpleActionGroup::create();
         AddAction("import", &Window::OnImport);
         AddAction("about", &Window::OnAbout);
-
         AddActionsToGroupAction();
         insert_action_group("win", m_actionGroup);
 
-        // --- MENU BAR SETUP ---
+        // =======================
+        // MENU BAR
+        // =======================
         auto menu = Gio::Menu::create();
         auto submenuFile = Gio::Menu::create();
         submenuFile->append("Import", "win.import");
@@ -55,8 +77,7 @@ namespace Editor
 
         auto submenuEdit = Gio::Menu::create();
         submenuEdit->append("Rotate", "win.rotate");
-        submenuEdit->append("Flip Vertical", "win.flip_vertical");
-        submenuEdit->append("Flip Horizontal", "win.flip_horizontal");
+        submenuEdit->append("Flip", "win.flip");
         submenuEdit->append("Undo", "win.undo");
         submenuEdit->append("Redo", "win.redo");
         menu->append_submenu("Edit", submenuEdit);
@@ -66,7 +87,7 @@ namespace Editor
         submenuFilter->append("Blur", "win.blur");
         submenuFilter->append("Sharpen", "win.sharpen");
         submenuFilter->append("Emboss", "win.emboss");
-        submenuFilter->append("Invert colors", "win.invert");
+        submenuFilter->append("Color Invert", "win.color_invert");
         submenuFilter->append("Sepia", "win.sepia");
         submenuFilter->append("Edge Detect", "win.edge_detect");
         menu->append_submenu("Filter", submenuFilter);
@@ -77,102 +98,280 @@ namespace Editor
 
         auto menubar = Gtk::make_managed<Gtk::PopoverMenuBar>(menu);
 
-        // --- IMAGE DISPLAY SETUP ---
-        m_picture.set_hexpand(true);
-        m_picture.set_vexpand(true);
+        // =======================
+        // LEFT SIDE : IMAGE VIEWPORT
+        // =======================
+        m_picture.set_expand(true);
         m_picture.set_keep_aspect_ratio(true);
         m_picture.set_can_shrink(true);
 
-        m_picture.set_margin_start(30);
-        m_picture.set_margin_end(30);
-        m_picture.set_margin_top(5);
-        m_picture.set_margin_bottom(5);
+        auto imageOverlay = Gtk::make_managed<Gtk::Overlay>();
+        imageOverlay->set_child(m_picture);
 
-        m_infoLabel.set_markup("<span color='gray'> Select an image to start editing </span>");
-        m_infoLabel.set_margin_bottom(5);
+        m_maskPicture.set_keep_aspect_ratio(true);
+        m_maskPicture.set_opacity(0.8);
+        m_maskPicture.set_can_target(false);
+        m_maskPicture.set_can_shrink(true);
+        imageOverlay->add_overlay(m_maskPicture);
 
-        // --- IMAGE CONTAINER ---
+        imageOverlay->set_hexpand(true);
+        imageOverlay->set_vexpand(true);
+
         m_imageContainer.set_orientation(Gtk::Orientation::VERTICAL);
-        m_imageContainer.append(m_picture);
+        m_imageContainer.append(*imageOverlay);
         m_imageContainer.append(m_infoLabel);
-        m_imageContainer.set_valign(Gtk::Align::FILL);
+
+        m_imageContainer.set_hexpand(true);
+        m_imageContainer.set_vexpand(true);
 
         m_scrolled.set_child(m_imageContainer);
         m_scrolled.set_expand(true);
-        m_scrolled.set_propagate_natural_height(true);
+        m_scrolled.set_min_content_width(300);
 
-        // --- BOTTOM CONTROLS BOX ---
-        m_controlsBox.set_orientation(Gtk::Orientation::HORIZONTAL);
-        m_controlsBox.set_spacing(20);
-        m_controlsBox.set_margin_bottom(10);
-        m_controlsBox.set_margin_start(20);
-        m_controlsBox.set_margin_end(20);
-        m_controlsBox.set_margin_top(0);
+        // =======================
+        // RIGHT SIDE : SIDEBAR
+        // =======================
 
-        m_controlsBox.set_vexpand(false);
-        m_controlsBox.set_valign(Gtk::Align::END);
+        auto sidePanel = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 6);
+        sidePanel->set_margin(6);
 
-        // Histogram Frame
-        m_histogramFrame.set_label("RGB Histogram");
-        m_histogramFrame.set_hexpand(true);
-        m_histogramFrame.set_vexpand(false);
-        m_histogram.set_size_request(-1, 140);
-        m_histogramFrame.set_child(m_histogram);
 
-        // Tone Curve Frame
-        m_curveFrame.set_label("Tone Curve");
-        m_curveFrame.set_hexpand(false);
-        m_curveFrame.set_vexpand(false);
-        m_toneCurve.set_size_request(180, 180);
-        m_curveFrame.set_child(m_toneCurve);
+        // =======================
+        // HISTOGRAM
+        // =======================
 
-        m_controlsBox.append(m_histogramFrame);
-        m_controlsBox.append(m_curveFrame);
+        auto histogramBox = Gtk::make_managed<Gtk::Box>(Gtk::Orientation::VERTICAL, 4);
 
-        // --- MAIN VERTICAL BOX ---
-        m_vbox.set_spacing(0);
+        auto channels = Gtk::StringList::create({
+                "RGB",
+                "Luminance",
+                "Red",
+                "Green",
+                "Blue"
+        });
+
+        auto dropdown = Gtk::make_managed<Gtk::DropDown>(channels);
+        dropdown->set_selected(0);
+
+        histogramBox->append(*dropdown);
+
+
+        // stack contenente gli histogram
+        m_histogramStack.set_hexpand(true);
+
+        m_histogramStack.add(m_histogramRGB, "rgb");
+        m_histogramStack.add(m_histogramLum, "lum");
+        m_histogramStack.add(m_histogramR, "r");
+        m_histogramStack.add(m_histogramG, "g");
+        m_histogramStack.add(m_histogramB, "b");
+        m_histogramRGB.SetChannelMode(Editor::Widget::HistogramWidget::ChannelMode::Rgb);
+        m_histogramLum.SetChannelMode(Editor::Widget::HistogramWidget::ChannelMode::Luminance);
+        m_histogramR.SetChannelMode(Editor::Widget::HistogramWidget::ChannelMode::Red);
+        m_histogramG.SetChannelMode(Editor::Widget::HistogramWidget::ChannelMode::Green);
+        m_histogramB.SetChannelMode(Editor::Widget::HistogramWidget::ChannelMode::Blue);
+
+        histogramBox->append(m_histogramStack);
+
+        // dropdown -> stack binding
+        dropdown->property_selected().signal_changed().connect(
+                [this, dropdown]() {
+                    static const char* pages[] = {"rgb", "lum", "r", "g", "b"};
+                    m_histogramStack.set_visible_child(pages[dropdown->get_selected()]);
+
+                    if(!m_document)
+                        return;
+
+                    if(auto* visibleWidget = dynamic_cast<Editor::Widget::HistogramWidget*>(
+                        m_histogramStack.get_visible_child()))
+                    {
+                        if(m_previewRenderer.GetPixels().empty())
+                            visibleWidget->SetImage(m_document->GetImage().GetPixelData(), 32);
+                        else
+                            visibleWidget->SetImage(m_previewRenderer.GetPixels(), 32);
+                    }
+                });
+
+
+        auto histogramPanel = Gtk::make_managed<Gtk::Expander>("Histogram");
+        histogramPanel->set_child(*histogramBox);
+        histogramPanel->set_expanded(true);
+
+        sidePanel->append(*histogramPanel);
+
+
+        // =======================
+        // TONE CURVE
+        // =======================
+
+        m_toneCurve.set_size_request(-1, 180);
+        m_toneCurve.set_hexpand(true);
+
+        auto curvePanel = Gtk::make_managed<Gtk::Expander>("Tone Curve");
+        curvePanel->set_child(m_toneCurve);
+        curvePanel->set_expanded(true);
+
+        sidePanel->append(*curvePanel);
+
+
+        // =======================
+        // BASIC CONTROLS
+        // =======================
+
+        auto controlsPanel = Gtk::make_managed<Gtk::Expander>("Basic");
+        controlsPanel->set_child(m_controlPanel);
+        controlsPanel->set_expanded(true);
+
+        sidePanel->append(*controlsPanel);
+
+        // =======================
+        // SCROLL
+        // =======================
+
+        auto sideScroll = Gtk::make_managed<Gtk::ScrolledWindow>();
+        sideScroll->set_policy(Gtk::PolicyType::NEVER, Gtk::PolicyType::AUTOMATIC);
+        sideScroll->set_child(*sidePanel);
+
+        constexpr int sidebarWidth = 220;
+
+        sideScroll->set_min_content_width(sidebarWidth);
+        sideScroll->set_max_content_width(sidebarWidth);
+        // =======================
+        // MAIN SPLITTER
+        // =======================
+        m_mainSplitter.set_orientation(Gtk::Orientation::HORIZONTAL);
+        m_mainSplitter.set_start_child(m_scrolled);
+        m_mainSplitter.set_end_child(*sideScroll);
+        m_mainSplitter.set_position(m_width - sidebarWidth);
+
+        m_mainSplitter.set_resize_start_child(true);
+        m_mainSplitter.set_resize_end_child(false);
+        m_mainSplitter.set_shrink_end_child(true);
+
+        // =======================
+        // FINAL LAYOUT
+        // =======================
+        m_vbox.set_orientation(Gtk::Orientation::VERTICAL);
         m_vbox.append(*menubar);
-        m_vbox.append(m_scrolled);
-        m_vbox.append(m_controlsBox);
+        m_vbox.append(m_mainSplitter);
+
+        auto key_controller = Gtk::EventControllerKey::create();
+
+        key_controller->signal_key_pressed().connect([this](guint keyValue, guint, Gdk::ModifierType) {
+            if(keyValue == GDK_KEY_m || keyValue == GDK_KEY_M)
+            {
+                bool is_visible = m_maskPicture.get_visible();
+                m_maskPicture.set_visible(!is_visible);
+                return true;
+            }
+            return false;
+        }, false);
+
+        add_controller(key_controller);
+
+        m_controlPanel.ParamCommit().connect(sigc::mem_fun(*this, &Window::OnParameterCommit));
+        m_controlPanel.ParamChanged().connect(sigc::mem_fun(*this, &Window::OnParameterChanged));
+
+        m_paramSetters = {
+                {"exposure", [this](float v) { m_params.exposure = v; }},
+                {"brightness", [this](float v) { m_params.brightness = v; }},
+                {"contrast", [this](float v) { m_params.contrast = v; }},
+                {"highlights", [this](float v) { m_params.highlights = v; }},
+                {"shadows", [this](float v) { m_params.shadows = v; }},
+                {"black_point", [this](float v) { m_params.black_point = v; }},
+                {"temperature", [this](float v) { m_params.temperature = v; }},
+                {"clarity", [this](float v) { m_params.clarity = v; }},
+                {"texture", [this](float v) { m_params.texture = v; }}
+        };
+
+        m_paramCommands = {
+                {"exposure", [](Document* doc, float v) { return std::make_unique<Command::ExposureCommand>(doc, v); }},
+                {"brightness",
+                 [](Document* doc, float v) { return std::make_unique<Command::BrightnessCommand>(doc, v); }},
+                {"contrast", [](Document* doc, float v) { return std::make_unique<Command::ContrastCommand>(doc, v); }},
+                {"highlights",
+                 [](Document* doc, float v) { return std::make_unique<Command::HighlightsCommand>(doc, v); }},
+                {"shadows", [](Document* doc, float v) { return std::make_unique<Command::ShadowsCommand>(doc, v); }},
+                {"black_point",
+                 [](Document* doc, float v) { return std::make_unique<Command::BlackPointCommand>(doc, v); }},
+                {"temperature",
+                 [](Document* doc, float v) { return std::make_unique<Command::TemperatureCommand>(doc, v); }},
+                {"clarity", [](Document* doc, float v) { return std::make_unique<Command::ClarityCommand>(doc, v); }},
+                {"texture", [](Document* doc, float v) { return std::make_unique<Command::TextureCommand>(doc, v); }}
+        };
+
         set_child(m_vbox);
 
-        SetupDragAndDrop();
+        // =======================
+        // SIGNALS
+        // =======================
 
+        // --- SignalCurveChanged ---
         m_toneCurve.SignalCurveChanged().connect([this]() {
-
             if(!m_document)
                 return;
 
-            auto& image = m_document->GetImage();
-            auto pixels = image.GetPixelData();
-
-            if(m_startPixels.empty())
+            if(!m_dragInProgress)
             {
-                m_startPixels.assign(pixels.begin(), pixels.end());
+                m_dragInProgress = true;
+                auto& image = m_document->GetImage();
+                m_startPixels.assign(image.GetPixelData().begin(), image.GetPixelData().end());
                 m_startState = m_toneCurve.GetState();
+                m_previewRenderer.SetSource(m_startPixels, image.GetWidth(), image.GetHeight());
             }
 
-            const auto& lut = m_toneCurve.GetLUT();
+            if(!m_previewRenderer.ShouldUpdate())
+                return;
 
-            Utils::ApplyLut(pixels, m_startPixels, lut);
+            m_previewRenderer.UpdateLut(m_toneCurve.GetLUT());
 
-            UpdateImageView();
-            m_histogram.SetImage(pixels, 0, 0, 16);
+            UpdateImageViewPreview(m_previewRenderer.GetPixels(),
+                                   m_previewRenderer.GetWidth(),
+                                   m_previewRenderer.GetHeight());
+
+            if(auto* visibleWidget = dynamic_cast<Editor::Widget::HistogramWidget*>(m_histogramStack.
+                get_visible_child()))
+                visibleWidget->SetImage(m_previewRenderer.GetPixels(), 32);
         });
 
+        // --- SignalDragFinished ---
         m_toneCurve.SignalDragFinished().connect([this]() {
-
-            if(!m_document)
+            if(!m_document || !m_dragInProgress)
                 return;
 
             auto endState = m_toneCurve.GetState();
+            const auto& lut = m_toneCurve.GetLUT();
 
-            auto cmd = std::make_unique<Command::ToneCurveCommand>(m_document, m_toneCurve, m_startState, endState,
-                                                                   m_startPixels);
+            auto finalBuffer = std::make_shared<std::vector<Pixel>>(m_startPixels);
 
-            m_document->ExecuteCommand(std::move(cmd));
+            std::thread([this, finalBuffer, lut, endState]() {
+                for(size_t i = 0; i < finalBuffer->size(); i++)
+                {
+                    const auto& src = (*finalBuffer)[i];
+                    (*finalBuffer)[i].SetPixel(lut[src.GetR()], lut[src.GetG()],
+                                               lut[src.GetB()], src.GetA());
+                }
 
-            m_startPixels.clear();
+                Glib::signal_idle().connect_once([this, finalBuffer, endState]() {
+                    auto cmd = std::make_unique<Command::ToneCurveCommand>(
+                            m_document,
+                            m_toneCurve,
+                            m_startState,
+                            endState,
+                            m_startPixels
+                            );
+
+                    m_document->ExecuteCommand(std::move(cmd));
+
+                    m_previewRenderer.SetSource(m_document->GetImage().GetPixelData(),
+                                                m_document->GetImage().GetWidth(),
+                                                m_document->GetImage().GetHeight());
+
+                    UpdateImageView();
+                    UpdateVisibleHistogram();
+
+                    m_dragInProgress = false;
+                });
+            }).detach();
         });
     }
 
@@ -205,10 +404,14 @@ namespace Editor
 
     void Window::LoadDocument(Document* doc)
     {
-        m_document = doc;
-
-        if(!m_document)
+        if(!doc)
+        {
+            m_document = nullptr;
+            m_picture.set_paintable(nullptr);
             return;
+        }
+
+        m_document = doc;
 
         m_document->SetOnImageChangedCallback([this] {
             UpdateImageView();
@@ -218,12 +421,32 @@ namespace Editor
             UpdateUndoRedoState();
         });
 
+        m_params = Utils::AdjustParams{};
+        m_controlPanel.ResetAllSliders();
+
+        m_toneCurve.Reset();
+
+        m_dragInProgress = false;
+        m_startPixels.clear();
+
         UpdateImageView();
         UpdateUndoRedoState();
         UpdateAllActionsEnabled();
 
-        auto initialLum = m_histogram.GetLuminanceHistogram();
+        m_previewRenderer.SetSource(
+            m_document->GetImage().GetPixelData(),
+            m_document->GetImage().GetWidth(),
+            m_document->GetImage().GetHeight()
+        );
+
+        auto initialLum = m_histogramRGB.GetLuminanceHistogram();
         m_toneCurve.SetHistogram(initialLum);
+
+        m_histogramRGB.SetImage(m_document->GetImage().GetPixelData(), 32);
+        m_histogramLum.SetImage(m_document->GetImage().GetPixelData(), 32);
+        m_histogramR.SetImage(m_document->GetImage().GetPixelData(), 32);
+        m_histogramG.SetImage(m_document->GetImage().GetPixelData(), 32);
+        m_histogramB.SetImage(m_document->GetImage().GetPixelData(), 32);
 
         m_infoLabel.set_markup("<b>File:</b> " +
                                m_document->GetFilePath().filename().string());
@@ -293,7 +516,7 @@ namespace Editor
     void Window::UpdateImageView()
     {
         if(!m_document)
-            throw std::runtime_error("Document is null");
+            return;
 
         auto& image = m_document->GetImage();
         std::span<Pixel> pixels = image.GetPixelData();
@@ -302,11 +525,27 @@ namespace Editor
         auto texture = Gdk::MemoryTexture::create(
                 image.GetWidth(), image.GetHeight(),
                 Gdk::MemoryTexture::Format::R8G8B8A8,
-                bytes, image.GetWidth() * 4
-                );
+                bytes, image.GetWidth() * 4);
         m_picture.set_paintable(texture);
 
-        m_histogram.SetImage(pixels, image.GetWidth(), image.GetHeight());
+        if(auto* visibleWidget = dynamic_cast<Editor::Widget::HistogramWidget*>(m_histogramStack.get_visible_child()))
+            visibleWidget->SetImage(pixels, 32);
+
+        UpdateVisibleHistogram();
+        auto mask = m_analyzer.GenerateClippingMask(pixels, image.GetWidth(), image.GetHeight());
+        m_maskPicture.set_pixbuf(mask);
+    }
+
+    void Window::UpdateImageViewPreview(const std::span<const Pixel>& previewPixels, int width, int height)
+    {
+        auto bytes = Glib::Bytes::create(previewPixels.data(),
+                                         previewPixels.size() * sizeof(Pixel));
+        auto texture = Gdk::MemoryTexture::create(
+                width, height,
+                Gdk::MemoryTexture::Format::R8G8B8A8,
+                bytes, width * 4);
+
+        m_picture.set_paintable(texture);
     }
 
     void Window::UpdateDisplayFromDocument()
@@ -327,13 +566,67 @@ namespace Editor
         m_picture.set_paintable(texture);
     }
 
+    void Window::OnParameterChanged(const std::string& id, float value)
+    {
+        if(!m_document)
+            return;
+
+        if(m_paramSetters.contains(id))
+            m_paramSetters[id](value);
+
+        if(auto lut = PreviewRenderer::BuildLut(id, value))
+            m_previewRenderer.UpdateLut(*lut);
+        else
+        {
+            m_previewRenderer.ResetToOriginal();
+
+            std::vector pixels(m_previewRenderer.GetOriginalPixels().begin(), m_previewRenderer.GetOriginalPixels().end());
+            Image temp(m_previewRenderer.GetWidth(), m_previewRenderer.GetHeight(), 4, std::move(pixels));
+            PreviewRenderer::ApplySingleParameter(temp, id, value);
+            m_previewRenderer.SetPreview(temp.GetPixelData());
+        }
+
+        UpdateImageViewPreview(m_previewRenderer.GetPixels(), m_previewRenderer.GetWidth(), m_previewRenderer.GetHeight());
+
+        if(auto* visibleWidget = dynamic_cast<Editor::Widget::HistogramWidget*>(m_histogramStack.get_visible_child()))
+            visibleWidget->SetImage(m_previewRenderer.GetPixels(), 32);
+    }
+
+    void Window::OnParameterCommit(const std::string& id, float value)
+    {
+        if(!m_document)
+            return;
+
+        if(m_paramCommands.contains(id))
+        {
+            auto cmd = m_paramCommands[id](m_document, value);
+            m_document->ExecuteCommand(std::move(cmd));
+
+            auto& img = m_document->GetImage();
+            m_previewRenderer.SetSource(img.GetPixelData(), img.GetWidth(), img.GetHeight());
+
+            m_previewRenderer.ResetToOriginal();
+            UpdateImageViewPreview(
+                    m_previewRenderer.GetPixels(),
+                    m_previewRenderer.GetWidth(),
+                    m_previewRenderer.GetHeight()
+                    );
+        }
+    }
+
     void Window::OnCurveDragFinished()
     {
-        const int width = m_document->GetImage().GetWidth();
-        const int height = m_document->GetImage().GetHeight();
+        m_histogramRGB.SetImage(m_document->GetImage().GetPixelData());
+        m_histogramRGB.queue_draw();
+    }
 
-        m_histogram.SetImage(m_document->GetImage().GetPixelData(), width, height);
-        m_histogram.queue_draw();
+    void Window::UpdateVisibleHistogram()
+    {
+        if(auto* visibleWidget = dynamic_cast<Editor::Widget::HistogramWidget*>(m_histogramStack.get_visible_child()))
+        {
+            auto& image = m_document->GetImage();
+            visibleWidget->SetImage(image.GetPixelData(), 32);
+        }
     }
 
     void Window::SetOpenDocumentCallback(std::function<void(const std::filesystem::path&)> cb)
@@ -353,11 +646,13 @@ namespace Editor
         });
 
         UpdateUndoRedoState();
+        m_previewRenderer.SetSource(m_document->GetImage().GetPixelData(),
+                                    m_document->GetImage().GetWidth(),
+                                    m_document->GetImage().GetHeight());
     }
 
     void Window::UpdateUndoRedoState() const
     {
-
         if(!m_document)
             return;
 
@@ -444,9 +739,7 @@ namespace Editor
 
         for(const auto& [name, action] : m_actions)
         {
-            if(name == "import")
-                action->set_enabled(true);
-            else if(name == "about")
+            if(name == "import" || name == "about")
                 action->set_enabled(true);
             else if(name == "undo")
                 action->set_enabled(hasDoc && m_document->CanUndo());
@@ -467,45 +760,45 @@ namespace Editor
 
     void Window::AddActionsToGroupAction()
     {
-        AddSimpleAction("undo", [this](auto) {
+        AddSimpleAction("undo", [this](const auto&) {
             if(m_document)
                 m_document->Undo();
         });
 
-        AddSimpleAction("redo", [this](auto) {
+        AddSimpleAction("redo", [this](const auto&) {
             if(m_document)
                 m_document->Redo();
         });
 
-        AddSimpleAction("rotate", [this](auto) {
+        AddSimpleAction("rotate", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::RotateCommand>(m_document, 90);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("flip_horizontal", [this](auto) {
+        AddSimpleAction("flip_horizontal", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::FlipCommand>(m_document, Command::FlipDirection::Horizontal);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("flip_vertical", [this](auto) {
+        AddSimpleAction("flip_vertical", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::FlipCommand>(m_document, Command::FlipDirection::Vertical);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("grayscale", [this](auto) {
+        AddSimpleAction("grayscale", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::GrayScaleCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("blur", [this](auto) {
+        AddSimpleAction("blur", [this](const auto&) {
             auto dialog = Gtk::make_managed<Gtk::Dialog>("Set Blur Radius", *this, true);
             dialog->add_button("_Cancel", Gtk::ResponseType::CANCEL);
             dialog->add_button("_Apply", Gtk::ResponseType::OK);
@@ -520,7 +813,7 @@ namespace Editor
                     if(!m_document)
                         return;
 
-                    float radius = static_cast<float>(spin->get_value());
+                    auto radius = static_cast<float>(spin->get_value());
                     auto cmd = std::make_unique<Command::BlurCommand>(m_document, radius);
                     m_document->ExecuteCommand(std::move(cmd));
                 }
@@ -531,42 +824,42 @@ namespace Editor
             dialog->show();
         });
 
-        AddSimpleAction("sharpen", [this](auto) {
+        AddSimpleAction("sharpen", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::SharpenCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("emboss", [this](auto) {
+        AddSimpleAction("emboss", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::EmbossCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("invert", [this](auto) {
+        AddSimpleAction("color_invert", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::ColorInversionCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("edge_detect", [this](auto) {
+        AddSimpleAction("edge_detect", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::EdgeDetectCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("sepia", [this](auto) {
+        AddSimpleAction("sepia", [this](const auto&) {
             if(!m_document)
                 return;
             auto cmd = std::make_unique<Command::SepiaCommand>(m_document);
             m_document->ExecuteCommand(std::move(cmd));
         });
 
-        AddSimpleAction("save", [this](auto) {
+        AddSimpleAction("save", [this](const auto&) {
             OnSave();
         });
 

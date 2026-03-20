@@ -117,6 +117,8 @@ namespace Editor::Widget
 
         void SetState(const ToneCurveState& state);
 
+        void Reset();
+
         ToneCurveState GetState() const;
 
     private:

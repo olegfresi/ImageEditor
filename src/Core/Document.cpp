@@ -11,7 +11,7 @@ namespace Editor
     Document::Document(int width, int height, Image image, ColorSpace color) : m_width{width}, m_height{height},
         m_revision{1}, m_colorSpace{color}, m_image{std::move(image)} {}
 
-    bool Document::IsDirty() const { return m_isDirty; }
+    bool Document::IsDirty() const noexcept{ return m_isDirty; }
 
     void Document::ExecuteCommand(std::unique_ptr<Command::ICommand> command)
     {
@@ -89,10 +89,7 @@ namespace Editor
         m_isDirty = false;
     }
 
-    void Document::UpdateDirtyFlag()
-    {
-        m_isDirty = (m_undoStack.size() != m_saveIndex);
-    }
+    void Document::UpdateDirtyFlag() { m_isDirty = (m_undoStack.size() != m_saveIndex); }
 
     void Document::NotifyImageChanged() const
     {

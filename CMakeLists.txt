@@ -5,6 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(PkgConfig REQUIRED)
+
 pkg_check_modules(GTKMM REQUIRED IMPORTED_TARGET gtkmm-4.0)
 
 add_executable(ImageEditor
@@ -30,6 +31,7 @@ add_executable(ImageEditor
         src/Core/Utils.cpp
         src/Core/Pixel.cpp
         src/Core/Processing.cpp
+        src/Core/PreviewRenderer.cpp
 
         src/Filter/Blur.cpp
         src/Filter/Sharpen.cpp
@@ -44,9 +46,12 @@ add_executable(ImageEditor
         src/Widget/Histogram.cpp
         src/Widget/ToneCurve.cpp
 
+        src/UI/ControlPanel.cpp
+
         src/main.cpp
         thirdparty/stb_image.cpp
 )
 
-target_link_libraries(ImageEditor PRIVATE PkgConfig::GTKMM)
+target_include_directories(ImageEditor PRIVATE include)
 
+target_link_libraries(ImageEditor PRIVATE PkgConfig::GTKMM)
